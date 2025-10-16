@@ -1,24 +1,40 @@
 {
   "compilerOptions": {
+    // Environment setup & latest features
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "target": "ESNext",
-    "useDefineForClassFields": true,
-    "lib": ["DOM", "DOM.Iterable", "ESNext"],
-    "allowJs": false,
-    "skipLibCheck": true,
-    "esModuleInterop": false,
+    "module": "ESNext",
+    "moduleDetection": "force",
+    "jsx": "react-jsx",
+    "allowJs": true,
+
+    // Path resolution
+    "baseUrl": "./",
+    "paths": {
+      "@server/*": ["./server/src/*"],
+      "@client/*": ["./client/src/*"],
+      "@shared/*": ["./shared/src/*"]
+    },
+
+    // Module resolution
+    "moduleResolution": "bundler",
     "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "verbatimModuleSyntax": true,
+
+    // Strictness and best practices
     "strict": true,
     "forceConsistentCasingInFileNames": true,
-    "module": "nodenext",
-    "isolatedModules": true,
-    "noEmit": true,
-    "jsx": "react-jsx",
-    "moduleResolution": "nodenext"
-  },
-  "include": [
-    "vite.config.ts",
-    ".eslintrc.cjs",
-    "src"
-  ],
-  "references": []
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "experimentalDecorators": true,
+
+    // Output control
+    "skipLibCheck": true,
+
+    // Optional strict flags (disabled by default)
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noPropertyAccessFromIndexSignature": false
+  }
 }

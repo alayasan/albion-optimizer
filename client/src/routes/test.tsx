@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { hcWithType } from "server/dist/client";
 import { useMutation } from "@tanstack/react-query";
 
-export const Route = createFileRoute("/")({
+export const Route = createFileRoute("/test")({
 	component: Index,
 });
 
@@ -26,7 +26,7 @@ function Index() {
 				const res = await client.hello.$get();
 				if (!res.ok) {
 					console.log("Error fetching data");
-					return;
+					return
 				}
 				const data = await res.json();
 				setData(data);
@@ -49,6 +49,7 @@ function Index() {
 					alt="beaver logo"
 				/>
 			</a>
+			<h1 className="text-5xl font-black">Hello World!</h1>
 			<h1 className="text-5xl font-black">bhvr</h1>
 			<h2 className="text-2xl font-bold">Bun + Hono + Vite + React</h2>
 			<p>A typesafe fullstack monorepo</p>
@@ -69,7 +70,7 @@ function Index() {
 				</pre>
 			)}
 		</div>
-	);
+	)
 }
 
 export default Index;

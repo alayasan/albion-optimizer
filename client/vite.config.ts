@@ -17,6 +17,16 @@ export default defineConfig({
 	resolve: {
 		alias: {
 			"@": path.resolve(__dirname, "./src"),
+			"@shared": path.resolve(__dirname, "../shared/src"),
+		},
+	},
+	server: {
+		watch: {
+			usePolling: true,
+			interval: 100,
+		},
+		hmr: {
+			overlay: true,
 		},
 	},
 });

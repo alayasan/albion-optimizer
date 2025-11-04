@@ -1,98 +1,97 @@
-import { Field, FieldGroup, FieldLabel, FieldSet } from '@/components/ui/field';
+import { FieldGroup, FieldSet } from '@/components/ui/field';
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command';
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from '@/components/ui/input-group';
+import { Label } from '@/components/ui/label';
+import { ChevronDown } from 'lucide-react';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { Input } from '@/components/ui/input';
-import { ChevronDown } from 'lucide-react';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
 import { useState } from 'react';
+import itemsData from '@shared/constants/items.json';
+import { processItems } from '@shared/utils/itemUtils';
+import type { Item, ItemData } from '@shared/types/items';
+
+// Process items using shared utility
+const items: Item[] = processItems(itemsData as ItemData[]);
 
 export const CraftingControls = () => {
   const [open, setOpen] = useState(false);
+  const [value, setValue] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Mock data - replace with your actual items
-  const items = [
-    'Calendar',
-    'Search Emoji',
-    'Calculator',
-    'Settings',
-    'Profile',
-    'Keyboard',
-  ];
-
-  const filteredItems = items.filter((item) =>
-    item.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const handleSelect = (selectedValue: string) => {
-    setSearchQuery(selectedValue);
-    setOpen(false);
-  };
+  // Filter items based on search query
+  const filteredItems = searchQuery
+    ? items.filter((item) =>
+        item.label.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : items;
 
   return (
     <form>
       <FieldGroup className="text-white grid grid-cols-4 grid-rows-2">
-        <FieldSet>
-          <Field
-            orientation="horizontal"
-            className="gap-2 [&>[data-slot=field-label]]:flex-none"
-          >
-            <FieldLabel htmlFor="item" className="capitalize w-fit">
-              item:
-            </FieldLabel>
-            <Popover open={open} onOpenChange={setOpen}>
-              <PopoverTrigger asChild>
-                <div className="relative flex items-center">
-                  <Input
-                    type="text"
+        <FieldSet className="flex-row gap-2">
+          <Label htmlFor="item" className="capitalize w-fit">
+            item:
+          </Label>
+          <Popover open={open} onOpenChange={setOpen}>
+            <InputGroup className="border-0">
+              <InputGroupInput
+                id="item"
+                placeholder="Enter item..."
+                value={value}
+                onChange={(e) => {
+                  setValue(e.target.value);
+                  setSearchQuery(e.target.value);
+                }}
+                onFocus={() => setOpen(true)}
+              />
+              <InputGroupAddon align="inline-end" className="cursor-pointer">
+                <PopoverTrigger>
+                  <ChevronDown size={16} />
+                </PopoverTrigger>
+              </InputGroupAddon>
+              <PopoverContent className="w-[400px] p-0" align="start">
+                <Command>
+                  <CommandInput
+                    placeholder="Search items..."
                     value={searchQuery}
-                    onChange={(e) => {
-                      setSearchQuery(e.target.value);
-                      setOpen(true);
-                    }}
-                    onClick={() => setOpen(true)}
-                    placeholder="Enter item..."
-                    className="pr-8 text-white cursor-text"
+                    onValueChange={setSearchQuery}
                   />
-                  <ChevronDown className="absolute right-3 size-4 shrink-0 opacity-50 pointer-events-none" />
-                </div>
-              </PopoverTrigger>
-              <PopoverContent
-                className="p-0 w-[--radix-popover-trigger-width]"
-                align="start"
-                onOpenAutoFocus={(e) => e.preventDefault()}
-              >
-                <Command shouldFilter={false}>
                   <CommandList>
-                    {filteredItems.length === 0 ? (
-                      <CommandEmpty>No results found.</CommandEmpty>
-                    ) : (
-                      <CommandGroup>
-                        {filteredItems.map((item) => (
-                          <CommandItem
-                            key={item}
-                            value={item}
-                            onSelect={() => handleSelect(item)}
-                          >
-                            <span>{item}</span>
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    )}
+                    <CommandEmpty>No items found.</CommandEmpty>
+                    <CommandGroup>
+                      {filteredItems.map((item) => (
+                        <CommandItem
+                          key={item.uniqueName}
+                          value={item.label}
+                          onSelect={(currentValue) => {
+                            setValue(currentValue);
+                            setSearchQuery('');
+                            setOpen(false);
+                          }}
+                        >
+                          {item.label}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
                   </CommandList>
                 </Command>
               </PopoverContent>
-            </Popover>
-          </Field>
+            </InputGroup>
+          </Popover>
         </FieldSet>
       </FieldGroup>
     </form>

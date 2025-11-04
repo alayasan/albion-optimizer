@@ -6,9 +6,11 @@
     { "path": "./tsconfig.app.json" }
   ],
   "compilerOptions": {
+    "resolveJsonModule": true,
     "paths": {
       "@/*": ["./src/*"],
       "@/components/*": ["./src/components/*"],
+      "@shared/*": ["../shared/src/*"]
     }
   }
 }

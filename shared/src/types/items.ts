@@ -29,6 +29,7 @@ export interface ItemData {
 
 export interface Item {
   uniqueName: string;
+  baseUniqueName: string;
   label: string;
 }
 

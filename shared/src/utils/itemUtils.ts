@@ -32,18 +32,49 @@ export function removeTierPrefix(name: string): string {
 }
 
 /**
+ * Extract tier number from UniqueName
+ * @param uniqueName - The unique name (e.g., "T3_MAIN_ARCANESTAFF")
+ * @returns The tier number (3-8) or 0 if not found
+ */
+export function extractTier(uniqueName: string): number {
+  const match = uniqueName.match(/^T(\d+)_/);
+  return match ? parseInt(match[1] ?? '0', 10) : 0;
+}
+
+/**
+ * Remove tier prefix from UniqueName
+ * @param uniqueName - The unique name (e.g., "T3_MAIN_ARCANESTAFF")
+ * @returns The unique name without tier prefix (e.g., "MAIN_ARCANESTAFF")
+ */
+export function stripTierFromUniqueName(uniqueName: string): string {
+  return uniqueName.replace(/^T\d+_/, '');
+}
+
+/**
+ * Get the base name for grouping items (without tier)
+ * @param uniqueName - The unique name (e.g., "T3_MAIN_ARCANESTAFF")
+ * @returns The base name for grouping
+ */
+export function getBaseName(uniqueName: string): string {
+  return stripTierFromUniqueName(uniqueName);
+}
+
+/**
  * Process raw item data into a filtered and formatted list
  * @param rawItems - Array of raw item data
  * @param locale - The locale to use for item names (defaults to 'EN-US')
- * @param removeDuplicates - Whether to remove duplicate items after removing tier prefixes (defaults to true)
+ * @param keepHighestTierOnly - Whether to keep only the highest tier version of each item (defaults to true)
  * @returns Filtered and formatted array of items
  */
+// Items to exclude from the list
+const EXCLUDED_ITEMS = ['Black Hands'];
+
 export function processItems(
   rawItems: ItemData[],
   locale: Locale = 'EN-US',
-  removeDuplicates: boolean = true
+  keepHighestTierOnly: boolean = true
 ): Item[] {
-  let processedItems = rawItems
+  const filteredItems = rawItems
     .filter(
       (item) =>
         item.LocalizedNames?.[locale] &&
@@ -51,15 +82,38 @@ export function processItems(
     )
     .map((item) => ({
       uniqueName: item.UniqueName,
+      baseUniqueName: stripTierFromUniqueName(item.UniqueName),
       label: removeTierPrefix(item.LocalizedNames![locale]!),
-    }));
+      tier: extractTier(item.UniqueName),
+    }))
+    .filter((item) => !EXCLUDED_ITEMS.includes(item.label));
 
-  // Remove duplicates by label (since we removed tier prefixes)
-  if (removeDuplicates) {
-    processedItems = processedItems.filter(
-      (item, index, self) =>
-        index === self.findIndex((i) => i.label === item.label)
-    );
+  let processedItems: Item[];
+
+  // Keep only the highest tier version of each item
+  if (keepHighestTierOnly) {
+    const itemMap = new Map<string, Item & { tier: number }>();
+
+    for (const item of filteredItems) {
+      // Group by label to handle different variants (e.g., MAIN_ARCANESTAFF vs 2H_ARCANESTAFF)
+      const key = item.label;
+      const existing = itemMap.get(key);
+      if (!existing || item.tier > existing.tier) {
+        itemMap.set(key, item);
+      }
+    }
+
+    processedItems = Array.from(itemMap.values()).map(({ uniqueName, baseUniqueName, label }) => ({
+      uniqueName,
+      baseUniqueName,
+      label,
+    }));
+  } else {
+    processedItems = filteredItems.map(({ uniqueName, baseUniqueName, label }) => ({
+      uniqueName,
+      baseUniqueName,
+      label,
+    }));
   }
 
   // Sort alphabetically

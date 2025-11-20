@@ -31,7 +31,8 @@
     "server": "workspace:*",
     "shared": "workspace:*",
     "tailwind-merge": "^3.3.1",
-    "tailwindcss": "^4.1.10"
+    "tailwindcss": "^4.1.10",
+    "zustand": "^5.0.8"
   },
   "devDependencies": {
     "@eslint/js": "^9.28.0",

@@ -33,7 +33,7 @@
   ],
   "devDependencies": {
     "bun-types": "latest",
-    "shadcn": "^3.4.2",
+    "shadcn": "^3.5.0",
     "turbo": "^2.5.5"
   },
   "peerDependencies": {

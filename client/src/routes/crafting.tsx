@@ -23,21 +23,17 @@ const columns = [
   },
 ];
 
-async function getData(): Promise<Payment[]> {
-  // Fetch data from your API here.
-  return [
+function RouteComponent() {
+  // TODO: Use React Query or similar for async data fetching
+  // For now, using dummy data synchronously
+  const data: Payment[] = [
     {
       id: '728ed52f',
       amount: 100,
       status: 'pending',
       email: 'm@example.com',
     },
-    // ...
   ];
-}
-
-async function RouteComponent() {
-  const data = await getData();
 
   return (
     <>

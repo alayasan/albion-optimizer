@@ -32,19 +32,75 @@ const storedState = loadFromStorage();
 interface ItemStore {
   selectedItem: Item | null;
   selectedQuality: number;
+  craftingLocation: string;
+  quantity: number;
+  stationFee: number;
+  refreshData: boolean;
+  useFocus: boolean;
+  zoneQuality: number;
+  hideoutPower: number;
+  dailyBonus: string;
   setSelectedItem: (item: Item | null) => void;
   setSelectedQuality: (quality: number) => void;
+  setCraftingLocation: (location: string) => void;
+  setQuantity: (quantity: number) => void;
+  setStationFee: (fee: number) => void;
+  setRefreshData: (refresh: boolean) => void;
+  setUseFocus: (focus: boolean) => void;
+  setZoneQuality: (quality: number) => void;
+  setHideoutPower: (power: number) => void;
+  setDailyBonus: (bonus: string) => void;
 }
 
-export const useItemStore = create<ItemStore>((set) => ({
+export const useItemStore = create<ItemStore>((set, get) => ({
   selectedItem: storedState?.selectedItem ?? defaultItem,
   selectedQuality: storedState?.selectedQuality ?? 2, // Default to Good quality
+  craftingLocation: storedState?.craftingLocation ?? 'bonus-city',
+  quantity: storedState?.quantity ?? 1,
+  stationFee: storedState?.stationFee ?? 0,
+  refreshData: storedState?.refreshData ?? false,
+  useFocus: storedState?.useFocus ?? false,
+  zoneQuality: storedState?.zoneQuality ?? 2,
+  hideoutPower: storedState?.hideoutPower ?? 1,
+  dailyBonus: storedState?.dailyBonus ?? 'none',
   setSelectedItem: (item: Item | null) => {
     set({ selectedItem: item });
-    saveToStorage({ selectedItem: item });
+    saveToStorage({ ...get(), selectedItem: item });
   },
   setSelectedQuality: (quality: number) => {
     set({ selectedQuality: quality });
-    saveToStorage({ selectedQuality: quality });
+    saveToStorage({ ...get(), selectedQuality: quality });
+  },
+  setCraftingLocation: (location: string) => {
+    set({ craftingLocation: location });
+    saveToStorage({ ...get(), craftingLocation: location });
+  },
+  setQuantity: (quantity: number) => {
+    set({ quantity });
+    saveToStorage({ ...get(), quantity });
+  },
+  setStationFee: (fee: number) => {
+    set({ stationFee: fee });
+    saveToStorage({ ...get(), stationFee: fee });
+  },
+  setRefreshData: (refresh: boolean) => {
+    set({ refreshData: refresh });
+    saveToStorage({ ...get(), refreshData: refresh });
+  },
+  setUseFocus: (focus: boolean) => {
+    set({ useFocus: focus });
+    saveToStorage({ ...get(), useFocus: focus });
+  },
+  setZoneQuality: (quality: number) => {
+    set({ zoneQuality: quality });
+    saveToStorage({ ...get(), zoneQuality: quality });
+  },
+  setHideoutPower: (power: number) => {
+    set({ hideoutPower: power });
+    saveToStorage({ ...get(), hideoutPower: power });
+  },
+  setDailyBonus: (bonus: string) => {
+    set({ dailyBonus: bonus });
+    saveToStorage({ ...get(), dailyBonus: bonus });
   },
 }));

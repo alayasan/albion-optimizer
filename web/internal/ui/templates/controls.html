@@ -1,0 +1,126 @@
+{{define "controls"}}
+<section class="panel controls">
+  <div class="control-group">
+    <label class="field">
+      <span>Item</span>
+      <select name="item" class="control">
+        {{range .Items}}
+        <option value="{{.UniqueName}}" {{if selected .UniqueName $.State.Item}}selected{{end}}>{{.Label}}</option>
+        {{end}}
+      </select>
+    </label>
+
+    <label class="field">
+      <span>Quality</span>
+      <select name="quality" class="control">
+        {{range .Qualities}}
+        <option value="{{.Value}}" {{if selected .Value $.State.Quality}}selected{{end}}>{{.Label}}</option>
+        {{end}}
+      </select>
+    </label>
+
+    <label class="field field-check">
+      <span>Refresh Data</span>
+      <input
+        type="checkbox"
+        name="refreshData"
+        value="1"
+        class="checkbox"
+        {{if .State.RefreshData}}checked{{end}}
+      />
+    </label>
+  </div>
+
+  <div class="preview">
+    {{if .Selected}}
+    <img class="preview-image" src="{{.ImageURL}}" alt="{{.Selected.Label}}" loading="lazy" />
+    <span class="preview-label">T{{.Summary.Tier}} {{.Selected.Label}}</span>
+    {{else}}
+    <div class="preview-empty">Select an item</div>
+    {{end}}
+  </div>
+
+  <div class="control-group">
+    <label class="field">
+      <span>Quantity</span>
+      <input
+        type="number"
+        name="quantity"
+        class="control"
+        min="1"
+        step="1"
+        value="{{.State.Quantity}}"
+        placeholder="999"
+      />
+    </label>
+
+    <label class="field">
+      <span>Station Fee</span>
+      <input
+        type="number"
+        name="stationFee"
+        class="control"
+        min="0"
+        step="1"
+        value="{{number .State.StationFee}}"
+        placeholder="0"
+      />
+    </label>
+
+    <label class="field field-check">
+      <span>Use Focus</span>
+      <input
+        type="checkbox"
+        name="useFocus"
+        value="1"
+        class="checkbox"
+        {{if .State.UseFocus}}checked{{end}}
+      />
+    </label>
+  </div>
+
+  <fieldset class="control-group locations">
+    <legend>Crafting Location</legend>
+    {{range .Locations}}
+    <label class="choice">
+      <input
+        type="radio"
+        name="location"
+        value="{{.Value}}"
+        {{if selected .Value $.State.Location}}checked{{end}}
+      />
+      <span>{{.Label}}</span>
+    </label>
+    {{end}}
+  </fieldset>
+
+  <div class="control-group">
+    <label class="field">
+      <span>Zone Quality</span>
+      <select name="zoneQuality" class="control">
+        {{range .ZoneQualities}}
+        <option value="{{.Value}}" {{if selected .Value $.State.ZoneQuality}}selected{{end}}>{{.Label}}</option>
+        {{end}}
+      </select>
+    </label>
+
+    <label class="field">
+      <span>Hideout Power</span>
+      <select name="hideoutPower" class="control">
+        {{range .HideoutPowers}}
+        <option value="{{.Value}}" {{if selected .Value $.State.HideoutPower}}selected{{end}}>{{.Label}}</option>
+        {{end}}
+      </select>
+    </label>
+
+    <label class="field">
+      <span>Daily Bonus</span>
+      <select name="dailyBonus" class="control">
+        {{range .DailyBonuses}}
+        <option value="{{.Value}}" {{if selected .Value $.State.DailyBonus}}selected{{end}}>{{.Label}}</option>
+        {{end}}
+      </select>
+    </label>
+  </div>
+</section>
+{{end}}

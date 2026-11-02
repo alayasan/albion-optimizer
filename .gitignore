@@ -1,42 +1,35 @@
-# bhvr/.gitignore
-# dependencies
-node_modules
-.pnp
-.pnp.js
-
-# testing
-coverage
-
-# production
-dist
-build
-
-# misc
-.DS_Store
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-.env*.local
-
-# logs
+# Logs
+logs
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+lerna-debug.log*
 
-# editor directories and files
-.idea
+# JS / node (legacy web tooling, future mobile app)
+node_modules
+dist
+dist-ssr
+*.local
+
+# Go
+web/bin/
+web/web
+*.exe
+*.test
+*.out
+
+# Editor directories and files
 .vscode/*
 !.vscode/extensions.json
-!.vscode/settings.json
+.idea
+.DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
 
-# Bun
-bun.lockb
-.turbo
+# Temp
+.tmp-data/

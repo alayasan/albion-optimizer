@@ -1,0 +1,43 @@
+{{define "results.html"}}
+<section class="panel results">
+  <div class="results-head">
+    <h2>Crafting Plan</h2>
+    {{if .Selected}}
+    <span class="muted">T{{.Summary.Tier}} · {{.Selected.Label}}</span>
+    {{end}}
+  </div>
+
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Item</th>
+          <th>Qty</th>
+          <th>Quality</th>
+          <th>Location</th>
+          <th>Zone</th>
+          <th>Hideout</th>
+          <th>Daily Bonus</th>
+          <th>Station Fee</th>
+          <th>Focus</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            {{if .Summary.Found}}{{.Summary.Item.Label}} ({{.Summary.Item.UniqueName}}){{else}}—{{end}}
+          </td>
+          <td>{{.State.Quantity}}</td>
+          <td>{{.Summary.QualityLabel}}</td>
+          <td>{{.Summary.LocationLabel}}</td>
+          <td>{{.State.ZoneQuality}}</td>
+          <td>{{.State.HideoutPower}}</td>
+          <td>{{.Summary.DailyBonusLabel}}</td>
+          <td>{{money .State.StationFee}} <span class="muted">({{money .Summary.StationFeeTotal}} total)</span></td>
+          <td>{{if .State.UseFocus}}Yes{{else}}No{{end}}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+{{end}}

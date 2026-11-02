@@ -1,0 +1,30 @@
+{{define "layout.html"}}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Albion Optimizer</title>
+    <link rel="stylesheet" href="/static/app.css" />
+    <script src="https://unpkg.com/htmx.org@2.0.4" defer></script>
+  </head>
+  <body>
+    <div class="site">
+      <header class="site-header">
+        <div>
+          <h1>Albion Optimizer</h1>
+          <p class="muted">Crafting cost &amp; profit planning</p>
+        </div>
+        <span class="badge">Albion Online</span>
+      </header>
+
+      <main>{{template "app.html" .}}</main>
+
+      <footer class="site-footer">
+        <span>Server-rendered with Go + htmx.</span>
+        <span class="muted">Item data from the Albion Online game files.</span>
+      </footer>
+    </div>
+  </body>
+</html>
+{{end}}

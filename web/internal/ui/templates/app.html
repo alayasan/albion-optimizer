@@ -1,0 +1,19 @@
+{{define "app.html"}}
+<div id="app" class="app-shell">
+  <form
+    id="crafting-form"
+    hx-post="/crafting"
+    hx-target="#app"
+    hx-swap="outerHTML"
+    hx-trigger="change delay:150ms"
+    hx-indicator="#saving"
+  >
+    {{template "controls.html" .}}
+    <div class="toolbar">
+      <span id="saving" class="htmx-indicator">Updating…</span>
+    </div>
+  </form>
+
+  {{template "results.html" .}}
+</div>
+{{end}}

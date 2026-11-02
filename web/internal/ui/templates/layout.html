@@ -1,4 +1,4 @@
-{{define "layout.html"}}
+{{define "layout"}}
 <!doctype html>
 <html lang="en">
   <head>
@@ -18,7 +18,7 @@
         <span class="badge">Albion Online</span>
       </header>
 
-      <main>{{template "app.html" .}}</main>
+      <main>{{template "app" .}}</main>
 
       <footer class="site-footer">
         <span>Server-rendered with Go + htmx.</span>

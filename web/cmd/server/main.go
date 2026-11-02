@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -31,8 +32,13 @@ func main() {
 		IdleTimeout:       60 * time.Second,
 	}
 
+	display := addr
+	if strings.HasPrefix(addr, ":") {
+		display = "localhost" + addr
+	}
+
 	go func() {
-		log.Printf("albion-optimizer listening on http://localhost%s", addr)
+		log.Printf("albion-optimizer listening on http://%s", display)
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("serve: %v", err)
 		}

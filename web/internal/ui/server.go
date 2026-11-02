@@ -106,9 +106,9 @@ func (s *Server) handleCrafting(w http.ResponseWriter, r *http.Request) {
 func (s *Server) render(w http.ResponseWriter, r *http.Request, state crafting.State) {
 	view := newView(state)
 
-	name := "layout.html"
+	name := "layout"
 	if isHTMX(r) {
-		name = "app.html"
+		name = "app"
 	}
 
 	var body bytes.Buffer

@@ -7,10 +7,18 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# JS / node (legacy web tooling, future mobile app)
 node_modules
 dist
 dist-ssr
 *.local
+
+# Go
+web/bin/
+web/web
+*.exe
+*.test
+*.out
 
 # Editor directories and files
 .vscode/*
@@ -22,3 +30,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Temp
+.tmp-data/

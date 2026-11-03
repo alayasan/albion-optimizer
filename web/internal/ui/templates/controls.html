@@ -33,8 +33,13 @@
 
   <div class="preview">
     {{if .Selected}}
-    <img class="preview-image" src="{{.ImageURL}}" alt="{{.Selected.Label}}" loading="lazy" />
-    <span class="preview-label">T{{.Summary.Tier}} {{.Selected.Label}}</span>
+    <img
+      class="preview-image"
+      src="https://render.albiononline.com/v1/item/{{.Selected.UniqueName}}"
+      alt="{{.Selected.Label}}"
+      loading="lazy"
+    />
+    <!-- <span class="preview-label">T{{.Summary.Tier}} {{.Selected.Label}}</span> -->
     {{else}}
     <div class="preview-empty">Select an item</div>
     {{end}}

@@ -1,0 +1,24 @@
+# Air live reload for the Go web app.
+# Run from web/ (the module root): air
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  # The module root has no Go files; cmd/server is the real entrypoint.
+  cmd = "go build -o ./tmp/main.exe ./cmd/server"
+  entrypoint = ["./tmp/main.exe"]
+
+  # Templates, CSS and item data are //go:embed-ed, so they need a rebuild too.
+  include_ext = ["go", "html", "css", "json"]
+  exclude_dir = ["tmp", ".git"]
+
+  delay = 300
+  # Windows has no SIGINT for child processes; give the old binary time to die
+  # so it releases :8080 before the next one starts.
+  kill_delay = "1s"
+
+[log]
+  time = true
+
+[misc]
+  clean_on_exit = true

@@ -530,7 +530,7 @@
         "label": "Great Cursed Staff"
     },
     {
-        "uniqueName": "T7_2H_FIRESTAFF",
+        "uniqueName": "T8_2H_FIRESTAFF",
         "baseUniqueName": "2H_FIRESTAFF",
         "label": "Great Fire Staff"
     },
@@ -555,7 +555,7 @@
         "label": "Great Nature Staff"
     },
     {
-        "uniqueName": "T7_2H_AXE",
+        "uniqueName": "T8_2H_AXE",
         "baseUniqueName": "2H_AXE",
         "label": "Greataxe"
     },
@@ -1255,7 +1255,7 @@
         "label": "Tome of Learning"
     },
     {
-        "uniqueName": "T7_OFF_BOOK",
+        "uniqueName": "T8_OFF_BOOK",
         "baseUniqueName": "OFF_BOOK",
         "label": "Tome of Spells"
     },

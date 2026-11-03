@@ -1,6 +1,9 @@
 package crafting
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func TestItemsLoadedAndSorted(t *testing.T) {
 	list := Items()
@@ -106,7 +109,7 @@ func TestStateCookieRoundTrip(t *testing.T) {
 		t.Fatalf("decode: %v", err)
 	}
 
-	if decoded != original {
+	if !reflect.DeepEqual(decoded, original) {
 		t.Errorf("round trip mismatch: got %+v want %+v", decoded, original)
 	}
 }

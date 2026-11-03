@@ -2,17 +2,18 @@ package ui
 
 import (
 	"bytes"
+	"context"
 	"embed"
 	"fmt"
 	"html/template"
 	"io/fs"
 	"log"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 
 	"github.com/alayasan/albion-optimizer/web/internal/crafting"
+	"github.com/alayasan/albion-optimizer/web/internal/market"
 )
 
 //go:embed templates/*.html static/*
@@ -28,19 +29,20 @@ type View struct {
 	State         crafting.State
 	Items         []crafting.Item
 	Selected      *crafting.Item
-	ImageURL      string
 	Summary       crafting.Summary
 	Qualities     []crafting.Option
 	ZoneQualities []crafting.Option
 	HideoutPowers []crafting.Option
 	DailyBonuses  []crafting.Option
 	Locations     []crafting.Option
+	Plans         []PlanRow
 }
 
 // Server serves the htmx-powered crafting UI and its static assets.
 type Server struct {
 	templates *template.Template
 	mux       *http.ServeMux
+	prices    *priceCache
 }
 
 // New parses the embedded templates and wires up the routes.
@@ -70,6 +72,7 @@ func New() (*Server, error) {
 	s := &Server{
 		templates: templates,
 		mux:       http.NewServeMux(),
+		prices:    newPriceCache(market.New(priceRegion), priceCity, priceTTL),
 	}
 
 	s.mux.HandleFunc("GET /", s.handleIndex)
@@ -104,7 +107,7 @@ func (s *Server) handleCrafting(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) render(w http.ResponseWriter, r *http.Request, state crafting.State) {
-	view := newView(state)
+	view := newView(r.Context(), s.prices, state)
 
 	name := "layout"
 	if isHTMX(r) {
@@ -123,7 +126,7 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, state crafting.S
 	_, _ = body.WriteTo(w)
 }
 
-func newView(state crafting.State) View {
+func newView(ctx context.Context, prices *priceCache, state crafting.State) View {
 	view := View{
 		State:         state,
 		Items:         crafting.Items(),
@@ -137,14 +140,10 @@ func newView(state crafting.State) View {
 
 	if item, ok := crafting.Lookup(state.Item); ok {
 		view.Selected = &item
-		view.ImageURL = itemImageURL(item)
+		view.Plans = buildPlan(ctx, prices, state, view.Selected)
 	}
 
 	return view
-}
-
-func itemImageURL(item crafting.Item) string {
-	return "https://render.albiononline.com/v1/item/T8_" + url.PathEscape(item.BaseUniqueName)
 }
 
 func (s *Server) readState(r *http.Request) crafting.State {

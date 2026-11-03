@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"sort"
 	"strconv"
+	"strings"
 )
 
 //go:embed data/items.json
@@ -26,6 +27,9 @@ type Option struct {
 	Value string
 	Label string
 }
+
+// overridePrefix is the form field prefix for manual unit prices.
+const overridePrefix = "price["
 
 var (
 	items []Item
@@ -72,6 +76,13 @@ var (
 	}
 
 	tierPattern = regexp.MustCompile(`^T(\d+)_`)
+	levelPattern = regexp.MustCompile(`_LEVEL\d+$`)
+	ingredientLabels = map[string]string{
+		"CLOTH":    "Cloth",
+		"LEATHER":  "Leather",
+		"METALBAR": "Metal Bar",
+		"PLANKS":   "Planks",
+	}
 )
 
 func init() {
@@ -102,6 +113,21 @@ func Lookup(uniqueName string) (Item, bool) {
 	return Item{}, false
 }
 
+// IngredientLabel returns the item label for a tiered or enchanted recipe
+// ingredient when that item is present in the craftable item list.
+func IngredientLabel(uniqueName string) string {
+	baseName := levelPattern.ReplaceAllString(tierPattern.ReplaceAllString(uniqueName, ""), "")
+	for _, item := range items {
+		if item.BaseUniqueName == baseName {
+			return item.Label
+		}
+	}
+	if label, ok := ingredientLabels[baseName]; ok {
+		return label
+	}
+	return uniqueName
+}
+
 // Tier extracts the tier number from a unique name such as T8_MAIN_SWORD.
 func Tier(uniqueName string) int {
 	match := tierPattern.FindStringSubmatch(uniqueName)
@@ -127,6 +153,8 @@ type State struct {
 	ZoneQuality  int     `json:"zoneQuality"`
 	HideoutPower int     `json:"hideoutPower"`
 	DailyBonus   string  `json:"dailyBonus"`
+	// Overrides holds manually entered unit prices, keyed by item id.
+	Overrides map[string]float64 `json:"prices,omitempty"`
 }
 
 // DefaultState mirrors the defaults used by the original React store.
@@ -171,6 +199,14 @@ func (s State) Normalize() State {
 	if !hasOption(DailyBonuses, s.DailyBonus) {
 		s.DailyBonus = "none"
 	}
+	for itemID, price := range s.Overrides {
+		if itemID == "" || price <= 0 {
+			delete(s.Overrides, itemID)
+		}
+	}
+	if len(s.Overrides) == 0 {
+		s.Overrides = nil
+	}
 	return s
 }
 
@@ -187,8 +223,32 @@ func FromValues(values url.Values) State {
 		ZoneQuality:  atoi(values.Get("zoneQuality"), 2),
 		HideoutPower: atoi(values.Get("hideoutPower"), 1),
 		DailyBonus:   values.Get("dailyBonus"),
+		Overrides:    parseOverrides(values),
 	}
 	return s.Normalize()
+}
+
+// parseOverrides reads price[ITEM_ID] form fields into a price map.
+func parseOverrides(values url.Values) map[string]float64 {
+	var overrides map[string]float64
+	for key, entries := range values {
+		if !strings.HasPrefix(key, overridePrefix) || !strings.HasSuffix(key, "]") {
+			continue
+		}
+		if len(entries) == 0 {
+			continue
+		}
+		itemID := strings.TrimSuffix(strings.TrimPrefix(key, overridePrefix), "]")
+		price, err := strconv.ParseFloat(strings.TrimSpace(entries[0]), 64)
+		if itemID == "" || err != nil || price <= 0 {
+			continue
+		}
+		if overrides == nil {
+			overrides = make(map[string]float64)
+		}
+		overrides[itemID] = price
+	}
+	return overrides
 }
 
 // Encode serializes state for use as a cookie value.

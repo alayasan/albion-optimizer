@@ -3,7 +3,7 @@
   <div class="results-head">
     <h2>Crafting Plan</h2>
     {{if .Selected}}
-    <span class="muted">T{{.Summary.Tier}} · {{.Selected.Label}}</span>
+    <span class="muted">{{.Selected.Label}}</span>
     {{end}}
   </div>
 
@@ -11,7 +11,19 @@
     <table class="data-table">
       <thead>
         <tr>
-          <th>Item</th>
+          <th></th>
+          {{if .Plans}}
+          {{with index .Plans 0}}
+          {{range .Cells}}
+          <th>{{if .ItemID}}{{.Label}}{{else}}Ingredient{{end}}</th>
+          {{end}}
+          {{end}}
+          {{else}}
+          <th>Ingredient 1</th>
+          <th>Ingredient 2</th>
+          <th>Ingredient 3</th>
+          <th>Ingredient 4</th>
+          {{end}}
           <th>Qty</th>
           <th>Quality</th>
           <th>Location</th>
@@ -23,19 +35,39 @@
         </tr>
       </thead>
       <tbody>
+        {{if .Plans}}
+        {{range .Plans}}
+        {{if .NewTier}}
+        {{end}}
         <tr>
+          <td>{{.Enchant}}</td>
+          {{range .Cells}}
           <td>
-            {{if .Summary.Found}}{{.Summary.Item.Label}} ({{.Summary.Item.UniqueName}}){{else}}—{{end}}
+            {{if .ItemID}}
+            <div>{{.ItemID}} &times;{{.Count}}</div>
+            <div class="muted">{{if .HasPrice}}{{money .Price}}{{else}}&mdash;{{end}}{{if .Age}} &middot;
+              {{.Age}}{{end}}</div>
+            <input class="control" type="number" name="price[{{.ItemID}}]" min="0" step="1"
+              placeholder="{{if .HasPrice}}{{money .Price}}{{end}}"
+              value="{{if .HasOverride}}{{number .Override}}{{end}}" />
+            {{else}}&mdash;{{end}}
           </td>
-          <td>{{.State.Quantity}}</td>
-          <td>{{.Summary.QualityLabel}}</td>
-          <td>{{.Summary.LocationLabel}}</td>
-          <td>{{.State.ZoneQuality}}</td>
-          <td>{{.State.HideoutPower}}</td>
-          <td>{{.Summary.DailyBonusLabel}}</td>
-          <td>{{money .State.StationFee}} <span class="muted">({{money .Summary.StationFeeTotal}} total)</span></td>
-          <td>{{if .State.UseFocus}}Yes{{else}}No{{end}}</td>
+          {{end}}
+          <td>{{$.State.Quantity}}</td>
+          <td>{{$.Summary.QualityLabel}}</td>
+          <td>{{$.Summary.LocationLabel}}</td>
+          <td>{{$.State.ZoneQuality}}</td>
+          <td>{{$.State.HideoutPower}}</td>
+          <td>{{$.Summary.DailyBonusLabel}}</td>
+          <td>{{money $.State.StationFee}} <span class="muted">({{money $.Summary.StationFeeTotal}} total)</span></td>
+          <td>{{if $.State.UseFocus}}Yes{{else}}No{{end}}</td>
         </tr>
+        {{end}}
+        {{else}}
+        <tr>
+          <td colspan="13" class="muted">No recipe data for this item.</td>
+        </tr>
+        {{end}}
       </tbody>
     </table>
   </div>

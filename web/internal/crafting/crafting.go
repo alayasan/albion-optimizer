@@ -75,14 +75,9 @@ var (
 		{Value: "island", Label: "Island"},
 	}
 
-	tierPattern = regexp.MustCompile(`^T(\d+)_`)
-	levelPattern = regexp.MustCompile(`_LEVEL\d+$`)
-	ingredientLabels = map[string]string{
-		"CLOTH":    "Cloth",
-		"LEATHER":  "Leather",
-		"METALBAR": "Metal Bar",
-		"PLANKS":   "Planks",
-	}
+	tierPattern    = regexp.MustCompile(`^T(\d+)_`)
+	levelPattern   = regexp.MustCompile(`_LEVEL\d+$`)
+	enchantPattern = regexp.MustCompile(`@\d+$`)
 )
 
 func init() {
@@ -111,21 +106,6 @@ func Lookup(uniqueName string) (Item, bool) {
 		}
 	}
 	return Item{}, false
-}
-
-// IngredientLabel returns the item label for a tiered or enchanted recipe
-// ingredient when that item is present in the craftable item list.
-func IngredientLabel(uniqueName string) string {
-	baseName := levelPattern.ReplaceAllString(tierPattern.ReplaceAllString(uniqueName, ""), "")
-	for _, item := range items {
-		if item.BaseUniqueName == baseName {
-			return item.Label
-		}
-	}
-	if label, ok := ingredientLabels[baseName]; ok {
-		return label
-	}
-	return uniqueName
 }
 
 // Tier extracts the tier number from a unique name such as T8_MAIN_SWORD.

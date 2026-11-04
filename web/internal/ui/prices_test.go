@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -157,9 +158,13 @@ func TestBuildPlanRowsAndPrices(t *testing.T) {
 	state := crafting.DefaultState()
 	state.Item = selected.UniqueName
 
-	rows := buildPlan(context.Background(), cache, state, selected)
+	table := buildPlan(context.Background(), cache, state, selected)
+	rows := table.Rows
 	if len(rows) != len(crafting.PlanTiers)*len(crafting.PlanEnchants) {
 		t.Fatalf("rows = %d, want %d", len(rows), len(crafting.PlanTiers)*len(crafting.PlanEnchants))
+	}
+	if want := []string{"Metal Bar", "Leather", "", ""}; !slices.Equal(table.Headers, want) {
+		t.Errorf("headers = %v, want %v", table.Headers, want)
 	}
 
 	first := rows[0]
@@ -171,6 +176,9 @@ func TestBuildPlanRowsAndPrices(t *testing.T) {
 	}
 	if first.Cells[0].ItemID != "T4_METALBAR" || first.Cells[0].Count != 16 {
 		t.Errorf("cell 0 = %+v, want T4_METALBAR x16", first.Cells[0])
+	}
+	if first.Cells[0].Label != "Steel Bar" {
+		t.Errorf("cell 0 label = %q, want Steel Bar", first.Cells[0].Label)
 	}
 	if !first.Cells[0].HasPrice || first.Cells[0].Price != 1000 {
 		t.Errorf("cell 0 price = %+v, want 1000", first.Cells[0])
@@ -211,8 +219,7 @@ func TestBuildPlanUsesOverrides(t *testing.T) {
 	state := crafting.DefaultState()
 	state.Overrides = map[string]float64{"T4_METALBAR": 77}
 
-	rows := buildPlan(context.Background(), cache, state, selected)
-	cell := rows[0].Cells[0]
+	cell := buildPlan(context.Background(), cache, state, selected).Rows[0].Cells[0]
 	if !cell.HasOverride || cell.Override != 77 || cell.Price != 77 {
 		t.Errorf("cell = %+v, want override 77", cell)
 	}
@@ -226,7 +233,11 @@ func TestBuildPlanUsesOverrides(t *testing.T) {
 
 func TestBuildPlanWithoutSelection(t *testing.T) {
 	cache := newPriceCache(newFakeMarket(t, nil).client(), "Caerleon", time.Minute)
-	if rows := buildPlan(context.Background(), cache, crafting.DefaultState(), nil); rows != nil {
-		t.Errorf("rows = %v, want nil", rows)
+	table := buildPlan(context.Background(), cache, crafting.DefaultState(), nil)
+	if len(table.Rows) != 0 {
+		t.Errorf("rows = %v, want none", table.Rows)
+	}
+	if len(table.Headers) != planIngredientColumns {
+		t.Errorf("headers = %v, want %d blanks", table.Headers, planIngredientColumns)
 	}
 }

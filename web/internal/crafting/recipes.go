@@ -15,6 +15,15 @@ type Ingredient struct {
 	Count  int    `json:"count"`
 }
 
+// recipes.json and names.json are generated from the ao-bin-dumps exports by
+// data/gen. Point it at both dumps and regenerate after a game patch:
+//
+//	AODP_FULL=~/ao-bin-dumps/items.json \
+//	AODP_FORMATTED=~/ao-bin-dumps/formatted/items.json \
+//	go generate ./internal/crafting
+//
+//go:generate go run ./data/gen
+
 // recipeBook maps base unique name -> tier -> enchant level -> ingredients.
 type recipeBook map[string]map[int]map[int][]Ingredient
 

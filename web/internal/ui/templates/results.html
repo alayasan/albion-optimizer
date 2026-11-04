@@ -12,17 +12,8 @@
       <thead>
         <tr>
           <th></th>
-          {{if .Plans}}
-          {{with index .Plans 0}}
-          {{range .Cells}}
-          <th>{{if .ItemID}}{{.Label}}{{else}}Ingredient{{end}}</th>
-          {{end}}
-          {{end}}
-          {{else}}
-          <th>Ingredient 1</th>
-          <th>Ingredient 2</th>
-          <th>Ingredient 3</th>
-          <th>Ingredient 4</th>
+          {{range .Plan.Headers}}
+          <th>{{.}}</th>
           {{end}}
           <th>Qty</th>
           <th>Quality</th>
@@ -35,16 +26,14 @@
         </tr>
       </thead>
       <tbody>
-        {{if .Plans}}
-        {{range .Plans}}
-        {{if .NewTier}}
-        {{end}}
+        {{if .Plan.Rows}}
+        {{range .Plan.Rows}}
         <tr>
           <td>{{.Enchant}}</td>
           {{range .Cells}}
           <td>
             {{if .ItemID}}
-            <div>{{.ItemID}} &times;{{.Count}}</div>
+            <div>{{.Label}} &times;{{.Count}}</div>
             <div class="muted">{{if .HasPrice}}{{money .Price}}{{else}}&mdash;{{end}}{{if .Age}} &middot;
               {{.Age}}{{end}}</div>
             <input class="control" type="number" name="price[{{.ItemID}}]" min="0" step="1"

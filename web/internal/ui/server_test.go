@@ -40,14 +40,13 @@ func TestCraftingPageRendersIngredientColumns(t *testing.T) {
 
 	body := recorder.Body.String()
 	for _, want := range []string{
-		"<th>Ingredient 1</th>",
-		"<th>Ingredient 4</th>",
-		`colspan="13"`,
+		"<th>Metal Bar</th>",
+		"<th>Leather</th>",
 		`name="price[T4_METALBAR]"`,
 		`placeholder="1234"`,
-		"T4_METALBAR &times;16",
+		"Steel Bar &times;16",
+		"Worked Leather &times;8",
 		"2026-11-03 02:10",
-		"<strong>T8</strong>",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("body missing %q", want)

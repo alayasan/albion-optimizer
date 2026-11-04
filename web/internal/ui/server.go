@@ -35,7 +35,7 @@ type View struct {
 	HideoutPowers []crafting.Option
 	DailyBonuses  []crafting.Option
 	Locations     []crafting.Option
-	Plans         []PlanRow
+	Plan          PlanTable
 }
 
 // Server serves the htmx-powered crafting UI and its static assets.
@@ -140,7 +140,7 @@ func newView(ctx context.Context, prices *priceCache, state crafting.State) View
 
 	if item, ok := crafting.Lookup(state.Item); ok {
 		view.Selected = &item
-		view.Plans = buildPlan(ctx, prices, state, view.Selected)
+		view.Plan = buildPlan(ctx, prices, state, view.Selected)
 	}
 
 	return view

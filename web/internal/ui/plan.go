@@ -32,16 +32,23 @@ type PlanRow struct {
 	Cells   []PlanCell
 }
 
+// PlanTable is the recipe table for the selected item: one header per
+// ingredient column plus one row per tier/enchant variant.
+type PlanTable struct {
+	Headers []string
+	Rows    []PlanRow
+}
+
 // buildPlan turns the recipe table for the selected item into view rows, using
 // manual overrides first and cached market prices second.
-func buildPlan(ctx context.Context, prices *priceCache, state crafting.State, selected *crafting.Item) []PlanRow {
+func buildPlan(ctx context.Context, prices *priceCache, state crafting.State, selected *crafting.Item) PlanTable {
 	if selected == nil {
-		return nil
+		return emptyPlan()
 	}
 
 	plans := crafting.Plans(selected.BaseUniqueName)
 	if len(plans) == 0 {
-		return nil
+		return emptyPlan()
 	}
 
 	seen := make(map[string]bool)
@@ -70,7 +77,7 @@ func buildPlan(ctx context.Context, prices *priceCache, state crafting.State, se
 		for _, ingredient := range plan.Ingredients {
 			cell := PlanCell{
 				ItemID: ingredient.ItemID,
-				Label:  crafting.IngredientLabel(ingredient.ItemID),
+				Label:  crafting.Name(ingredient.ItemID),
 				Count:  ingredient.Count,
 			}
 			if override, ok := state.Overrides[ingredient.ItemID]; ok {
@@ -91,5 +98,28 @@ func buildPlan(ctx context.Context, prices *priceCache, state crafting.State, se
 		}
 		rows = append(rows, row)
 	}
-	return rows
+
+	return PlanTable{Headers: planHeaders(plans), Rows: rows}
+}
+
+// emptyPlan keeps the table shape when nothing is selected, so the header row
+// still lines up with the empty-state row.
+func emptyPlan() PlanTable {
+	return PlanTable{Headers: make([]string, planIngredientColumns)}
+}
+
+// planHeaders names each ingredient column after the material family of the
+// lowest tier that fills it, so the header stays valid for every row.
+func planHeaders(plans []crafting.Plan) []string {
+	headers := make([]string, planIngredientColumns)
+	for column := range headers {
+		for _, plan := range plans {
+			if column >= len(plan.Ingredients) {
+				continue
+			}
+			headers[column] = crafting.FamilyName(plan.Ingredients[column].ItemID)
+			break
+		}
+	}
+	return headers
 }

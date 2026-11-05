@@ -37,6 +37,9 @@ type View struct {
 	DailyBonuses  []crafting.Option
 	Locations     []crafting.Option
 	DemandWindows []crafting.Option
+	Cities        []crafting.Option
+	SellModes     []crafting.Option
+	BuyModes      []crafting.Option
 	Plan          PlanTable
 }
 
@@ -76,8 +79,8 @@ func New() (*Server, error) {
 	s := &Server{
 		templates: templates,
 		mux:       http.NewServeMux(),
-		prices:    newPriceCache(client, priceCity, priceTTL),
-		demands:   newDemandCache(client, priceCity, priceQuality, priceTTL),
+		prices:    newPriceCache(client, priceTTL),
+		demands:   newDemandCache(client, priceQuality, priceTTL),
 	}
 
 	s.mux.HandleFunc("GET /", s.handleIndex)
@@ -141,6 +144,9 @@ func newView(ctx context.Context, prices *priceCache, demands *demandCache, stat
 		DailyBonuses:  crafting.DailyBonuses,
 		Locations:     crafting.Locations,
 		DemandWindows: crafting.DemandWindows,
+		Cities:        crafting.Cities,
+		SellModes:     crafting.SellModes,
+		BuyModes:      crafting.BuyModes,
 		Summary:       state.Summarize(),
 	}
 

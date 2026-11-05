@@ -169,3 +169,62 @@ func TestDemandDaysDefaultsAndNormalizes(t *testing.T) {
 		t.Errorf("form demand days = %d, want 14", got)
 	}
 }
+
+func TestMaterialsDefaultToInstantBuyInTheDefaultCity(t *testing.T) {
+	state := DefaultState()
+	if got := state.CityFor("T4_METALBAR"); got != DefaultCity {
+		t.Errorf("city = %q, want %q", got, DefaultCity)
+	}
+	if got := state.ModeFor("T4_METALBAR"); got != ModeInstant {
+		t.Errorf("mode = %q, want %q", got, ModeInstant)
+	}
+}
+
+func TestTradeSelectionsFromForm(t *testing.T) {
+	state := FromValues(url.Values{
+		"item":                 {"T8_MAIN_SWORD"},
+		"sellCity":             {"Caerleon"},
+		"sellMode":             {ModeInstant},
+		"buyCity[T4_METALBAR]": {"Thetford"},
+		"buyMode[T4_METALBAR]": {ModeOrder},
+	})
+
+	if state.SellCity != "Caerleon" || state.SellMode != ModeInstant {
+		t.Errorf("sell at %q/%q, want Caerleon/instant", state.SellCity, state.SellMode)
+	}
+	if got := state.CityFor("T4_METALBAR"); got != "Thetford" {
+		t.Errorf("material city = %q, want Thetford", got)
+	}
+	if got := state.ModeFor("T4_METALBAR"); got != ModeOrder {
+		t.Errorf("material mode = %q, want order", got)
+	}
+}
+
+func TestTradeSelectionsDropUnknownValues(t *testing.T) {
+	state := FromValues(url.Values{
+		"item":                 {"T8_MAIN_SWORD"},
+		"sellCity":             {"Nowhere"},
+		"sellMode":             {"bogus"},
+		"buyCity[T4_METALBAR]": {"Nowhere"},
+		"buyMode[T4_METALBAR]": {"bogus"},
+	})
+
+	if state.SellCity != DefaultCity || state.SellMode != ModeOrder {
+		t.Errorf("sell at %q/%q, want the defaults", state.SellCity, state.SellMode)
+	}
+	if state.BuyCities != nil || state.BuyModes != nil {
+		t.Errorf("kept invalid selections: %v/%v", state.BuyCities, state.BuyModes)
+	}
+}
+
+func TestTradeSelectionsDropDefaults(t *testing.T) {
+	state := FromValues(url.Values{
+		"item":                 {"T8_MAIN_SWORD"},
+		"buyCity[T4_METALBAR]": {DefaultCity},
+		"buyMode[T4_METALBAR]": {ModeInstant},
+	})
+
+	if len(state.BuyCities) != 0 || len(state.BuyModes) != 0 {
+		t.Errorf("kept entries equal to the defaults: %v/%v", state.BuyCities, state.BuyModes)
+	}
+}

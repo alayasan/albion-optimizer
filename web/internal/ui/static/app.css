@@ -195,12 +195,20 @@ select.control {
 }
 
 /* Prices read as inline text and only become fields when focused; the age
-   badge beside them is green when fresh and red past 40 hours */
+   badge beside them is green when fresh and red past 40 hours. The hub and
+   trade selects sit under the price so an ingredient column stays narrow */
 .price-row {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  gap: 2px 6px;
+}
+
+.price-field {
+  grid-column: 1 / -1;
   display: flex;
   align-items: center;
   gap: 6px;
-  width: 100%;
   cursor: text;
 }
 
@@ -211,6 +219,15 @@ select.control {
   border-color: transparent;
   text-align: start;
   font-variant-numeric: tabular-nums;
+}
+
+.price-row input.control {
+  width: 8ch;
+}
+
+.price-row select.control {
+  font-size: 12px;
+  padding: 0 2px;
 }
 
 .price-row .control:focus {

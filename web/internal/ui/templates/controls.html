@@ -80,6 +80,26 @@
         placeholder="0"
       />
     </label>
+  </div>
+
+  <div class="control-group">
+    <label class="field">
+      <span>Sell at</span>
+      <select name="sellCity" class="control">
+        {{range .Cities}}
+        <option value="{{.Value}}" {{if selected .Value $.State.SellCity}}selected{{end}}>{{.Label}}</option>
+        {{end}}
+      </select>
+    </label>
+
+    <label class="field">
+      <span>Sell type</span>
+      <select name="sellMode" class="control">
+        {{range .SellModes}}
+        <option value="{{.Value}}" {{if selected .Value $.State.SellMode}}selected{{end}}>{{.Label}}</option>
+        {{end}}
+      </select>
+    </label>
 
     <label class="field field-check">
       <span>Use Focus</span>

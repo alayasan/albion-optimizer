@@ -31,26 +31,37 @@
         <tr>
           <td class="enchant">{{.Enchant}}</td>
           {{range .Cells}}
+          {{$cell := .}}
           <td{{if gt .Rowspan 1}} rowspan="{{.Rowspan}}"{{end}}>
             {{if .ItemID}}
-            <label class="price-row">
-              <input class="control" type="number" name="price[{{.ItemID}}]" min="0" step="1"
-                aria-label="{{.Label}} price"
-                placeholder="{{if .HasPrice}}{{money .Price}}{{end}}"
-                value="{{if .HasOverride}}{{number .Override}}{{end}}" />
-              {{if .AgeHours}}<span class="age {{.AgeClass}}">{{.AgeHours}}</span>{{end}}
-            </label>
+            <div class="price-row">
+              <label class="price-field">
+                <input class="control" type="number" name="price[{{.ItemID}}]" min="0" step="1"
+                  aria-label="{{.Label}} price"
+                  placeholder="{{if .HasPrice}}{{money .Price}}{{end}}"
+                  value="{{if .HasOverride}}{{number .Override}}{{end}}" />
+                {{if .AgeHours}}<span class="age {{.AgeClass}}">{{.AgeHours}}</span>{{end}}
+              </label>
+              <select class="control" name="buyCity[{{.ItemID}}]" aria-label="{{.Label}} market">
+                {{range $.Cities}}<option value="{{.Value}}" {{if selected .Value $cell.City}}selected{{end}}>{{.Label}}</option>{{end}}
+              </select>
+              <select class="control" name="buyMode[{{.ItemID}}]" aria-label="{{.Label}} trade">
+                {{range $.BuyModes}}<option value="{{.Value}}" {{if selected .Value $cell.Mode}}selected{{end}}>{{.Label}}</option>{{end}}
+              </select>
+            </div>
             {{else}}&mdash;{{end}}
           </td>
           {{end}}
           <td>
-            <label class="price-row">
-              <input class="control" type="number" name="price[{{.Output.ItemID}}]" min="0" step="1"
-                aria-label="{{.Output.Label}} T{{.Tier}}{{if .Enchant}}.{{.Enchant}}{{end}} price"
-                placeholder="{{if .Output.HasPrice}}{{money .Output.Price}}{{end}}"
-                value="{{if .Output.HasOverride}}{{number .Output.Override}}{{end}}" />
-              {{if .Output.AgeHours}}<span class="age {{.Output.AgeClass}}">{{.Output.AgeHours}}</span>{{end}}
-            </label>
+            <div class="price-row">
+              <label class="price-field">
+                <input class="control" type="number" name="price[{{.Output.ItemID}}]" min="0" step="1"
+                  aria-label="{{.Output.Label}} T{{.Tier}}{{if .Enchant}}.{{.Enchant}}{{end}} price"
+                  placeholder="{{if .Output.HasPrice}}{{money .Output.Price}}{{end}}"
+                  value="{{if .Output.HasOverride}}{{number .Output.Override}}{{end}}" />
+                {{if .Output.AgeHours}}<span class="age {{.Output.AgeClass}}">{{.Output.AgeHours}}</span>{{end}}
+              </label>
+            </div>
           </td>
           <td class="num">{{if .HasDemand}}{{.DemandUnits}}{{else}}&mdash;{{end}}</td>
           <td class="num{{if .Economics.HasProfit}}{{if lt .Economics.Profit 0.0}} neg{{else}} pos{{end}}{{end}}">

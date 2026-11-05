@@ -18,37 +18,35 @@ type cachedDemand struct {
 	fetched time.Time
 }
 
-// demandCache keeps daily trade history per item so the demand columns can be
-// summed for any window without asking the market API again. A failed fetch
-// backs off for ttl, like the price cache.
+// demandCache keeps daily trade history per item and hub so the demand columns
+// can be summed for any window without asking the market API again. A failed
+// fetch backs off for priceRetry, like the price cache.
 type demandCache struct {
 	client  *market.Client
-	city    string
 	quality int
 	ttl     time.Duration
 	now     func() time.Time
 
 	mu      sync.RWMutex
-	entries map[string]cachedDemand
+	entries map[priceKey]cachedDemand
 	retryAt time.Time
 }
 
-func newDemandCache(client *market.Client, city string, quality int, ttl time.Duration) *demandCache {
+func newDemandCache(client *market.Client, quality int, ttl time.Duration) *demandCache {
 	return &demandCache{
 		client:  client,
-		city:    city,
 		quality: quality,
 		ttl:     ttl,
 		now:     time.Now,
-		entries: make(map[string]cachedDemand),
+		entries: make(map[priceKey]cachedDemand),
 	}
 }
 
-// Lookup returns how many units of each item were traded in the trailing
-// window of days days, counting today. Items the API has no history for are
-// absent from the result, which the template renders as a blank cell.
-func (c *demandCache) Lookup(ctx context.Context, ids []string, days int) map[string]int {
-	if len(ids) == 0 {
+// Lookup returns how many units of each item and hub were traded in the
+// trailing window of days days, counting today. Keys the API has no history for
+// are absent from the result, which the template renders as a blank cell.
+func (c *demandCache) Lookup(ctx context.Context, keys []priceKey, days int) map[priceKey]int {
+	if len(keys) == 0 {
 		return nil
 	}
 	if days < 1 {
@@ -60,11 +58,11 @@ func (c *demandCache) Lookup(ctx context.Context, ids []string, days int) map[st
 
 	c.mu.Lock()
 	now := c.now()
-	stale := make([]string, 0, len(ids))
-	for _, id := range ids {
-		entry, ok := c.entries[id]
+	stale := make(map[string][]string)
+	for _, key := range keys {
+		entry, ok := c.entries[key]
 		if !ok || now.Sub(entry.fetched) > c.ttl {
-			stale = append(stale, id)
+			stale[key.city] = append(stale[key.city], key.id)
 		}
 	}
 	canFetch := now.After(c.retryAt)
@@ -76,11 +74,11 @@ func (c *demandCache) Lookup(ctx context.Context, ids []string, days int) map[st
 
 	cutoff := startOfDay(now).AddDate(0, 0, -(days - 1))
 
-	result := make(map[string]int, len(ids))
+	result := make(map[priceKey]int, len(keys))
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	for _, id := range ids {
-		entry, ok := c.entries[id]
+	for _, key := range keys {
+		entry, ok := c.entries[key]
 		if !ok {
 			continue
 		}
@@ -90,39 +88,54 @@ func (c *demandCache) Lookup(ctx context.Context, ids []string, days int) map[st
 				units += point.ItemCount
 			}
 		}
-		result[id] = units
+		result[key] = units
 	}
 	return result
 }
 
-// fetch refreshes the daily history of the given items in one request.
-func (c *demandCache) fetch(ctx context.Context, ids []string, now time.Time) {
+// fetch refreshes the daily history of the stale hub and item pairs, one
+// request per hub.
+func (c *demandCache) fetch(ctx context.Context, stale map[string][]string, now time.Time) {
 	ctx, cancel := context.WithTimeout(ctx, priceTimeout)
 	defer cancel()
 
-	blocks, err := c.client.History(ctx, ids, market.HistoryQuery{
-		Locations: []string{c.city},
-		Qualities: []int{c.quality},
-		Start:     startOfDay(now).AddDate(0, 0, -(demandHistoryDays - 1)),
-		End:       startOfDay(now),
-		Scale:     24,
-	})
+	start := startOfDay(now).AddDate(0, 0, -(demandHistoryDays - 1))
+	end := startOfDay(now)
+
+	history := make(map[priceKey][]market.HistoryPoint)
+	failed := false
+	for city, ids := range stale {
+		blocks, err := c.client.History(ctx, ids, market.HistoryQuery{
+			Locations: []string{city},
+			Qualities: []int{c.quality},
+			Start:     start,
+			End:       end,
+			Scale:     24,
+		})
+		if err != nil {
+			failed = true
+			continue
+		}
+		for _, block := range blocks {
+			history[priceKey{id: block.ItemID, city: city}] = block.Data
+		}
+		// The API omits blocks for items it has no history for, so every
+		// requested id is stamped below; otherwise those ids would be retried
+		// on every render.
+		for _, id := range ids {
+			if _, ok := history[priceKey{id: id, city: city}]; !ok {
+				history[priceKey{id: id, city: city}] = nil
+			}
+		}
+	}
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if err != nil {
+	if failed {
 		c.retryAt = now.Add(priceRetry)
-		return
 	}
-	// The API omits blocks for items it has no history for, so every requested
-	// id is stamped as fetched; otherwise those ids would be retried on every
-	// render.
-	byID := make(map[string][]market.HistoryPoint, len(blocks))
-	for _, block := range blocks {
-		byID[block.ItemID] = block.Data
-	}
-	for _, id := range ids {
-		c.entries[id] = cachedDemand{points: byID[id], fetched: now}
+	for key, points := range history {
+		c.entries[key] = cachedDemand{points: points, fetched: now}
 	}
 }
 

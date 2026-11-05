@@ -20,8 +20,8 @@ func newTestServer(t *testing.T, prices map[string]int) (*Server, *fakeMarket) {
 	}
 	fake := newFakeMarket(t, prices)
 	client := fake.client()
-	server.prices = newPriceCache(client, "Caerleon", time.Minute)
-	server.demands = newDemandCache(client, "Caerleon", 1, time.Minute)
+	server.prices = newPriceCache(client, time.Minute)
+	server.demands = newDemandCache(client, 1, time.Minute)
 	return server, fake
 }
 
@@ -55,6 +55,10 @@ func TestCraftingPageRendersIngredientColumns(t *testing.T) {
 		`placeholder="1234"`,
 		`class="age age-`,
 		`name="price[T4_MAIN_SWORD]"`,
+		`name="buyCity[T4_METALBAR]"`,
+		`name="buyMode[T4_METALBAR]"`,
+		`name="sellCity"`,
+		`name="sellMode"`,
 		"<th class=\"num\">Demand (7d)</th>",
 		"<th class=\"num\">Bought / day</th>",
 	} {
@@ -132,5 +136,32 @@ func TestCraftingPageMergesUnenchantedIngredients(t *testing.T) {
 	}
 	if got := strings.Count(body, `name="price[T8_ARTEFACT_2H_ARCANESTAFF_CRYSTAL]"`); got != 1 {
 		t.Errorf("tier 8 artefact inputs = %d, want 1", got)
+	}
+}
+
+func TestCraftingPageKeepsTradeSelections(t *testing.T) {
+	server, _ := newTestServer(t, map[string]int{"T4_METALBAR": 1000, "T4_LEATHER": 500})
+
+	recorder := postForm(server, url.Values{
+		"item":                 {"T8_MAIN_SWORD"},
+		"sellCity":             {"Caerleon"},
+		"sellMode":             {"instant"},
+		"buyCity[T4_METALBAR]": {"Thetford"},
+		"buyMode[T4_METALBAR]": {"order"},
+	})
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", recorder.Code)
+	}
+
+	body := recorder.Body.String()
+	for _, want := range []string{
+		`<option value="Caerleon" selected>Caerleon</option>`,
+		`<option value="instant" selected>Instant sell</option>`,
+		`<option value="Thetford" selected>Thetford</option>`,
+		`<option value="order" selected>Buy order</option>`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("body missing %q", want)
+		}
 	}
 }

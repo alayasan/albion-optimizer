@@ -19,12 +19,14 @@ import (
 // fakeMarket serves /api/v2/stats/prices and /api/v2/stats/history from fixed
 // tables and records how many requests it received.
 type fakeMarket struct {
-	server   *httptest.Server
-	mu       sync.Mutex
-	requests int
-	paths    []string
-	failing  bool
-	history  map[string]int
+	server     *httptest.Server
+	mu         sync.Mutex
+	requests   int
+	paths      []string
+	failing    bool
+	history    map[string]int
+	bids       map[string]int
+	cityPrices map[string]map[string]int
 }
 
 func newFakeMarket(t *testing.T, prices map[string]int) *fakeMarket {
@@ -37,6 +39,8 @@ func newFakeMarket(t *testing.T, prices map[string]int) *fakeMarket {
 		fake.paths = append(fake.paths, r.URL.RequestURI())
 		failing := fake.failing
 		history := fake.history
+		bids := fake.bids
+		cityPrices := fake.cityPrices
 		fake.mu.Unlock()
 
 		if failing {
@@ -51,19 +55,23 @@ func newFakeMarket(t *testing.T, prices map[string]int) *fakeMarket {
 
 		const prefix = "/api/v2/stats/prices/"
 		ids := strings.Split(strings.TrimPrefix(r.URL.Path, prefix), ",")
+		city := r.URL.Query().Get("locations")
 		rows := make([]string, 0, len(ids))
 		for _, id := range ids {
-			price, ok := prices[id]
+			price, ok := cityPrices[city][id]
+			if !ok {
+				price, ok = prices[id]
+			}
 			if !ok {
 				continue
 			}
 			rows = append(rows, fmt.Sprintf(
-				`{"item_id":%q,"city":"Caerleon","quality":1,"sell_price_min":%d,`+
+				`{"item_id":%q,"city":%q,"quality":1,"sell_price_min":%d,`+
 					`"sell_price_min_date":"2026-11-03T02:10:00",`+
 					`"sell_price_max":0,"sell_price_max_date":"0001-01-01T00:00:00",`+
 					`"buy_price_min":0,"buy_price_min_date":"0001-01-01T00:00:00",`+
-					`"buy_price_max":0,"buy_price_max_date":"0001-01-01T00:00:00"}`,
-				id, price))
+					`"buy_price_max":%d,"buy_price_max_date":"2026-11-03T02:10:00"}`,
+				id, city, price, bids[id]))
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = fmt.Fprintf(w, "[%s]", strings.Join(rows, ","))
@@ -130,11 +138,39 @@ func (f *fakeMarket) setFailing(failing bool) {
 	f.failing = failing
 }
 
+// setBids sets the highest buy order per item.
+func (f *fakeMarket) setBids(bids map[string]int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.bids = bids
+}
+
+// setCityPrices prices an item differently in one hub.
+func (f *fakeMarket) setCityPrices(city string, prices map[string]int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.cityPrices == nil {
+		f.cityPrices = make(map[string]map[string]int)
+	}
+	f.cityPrices[city] = prices
+}
+
 // newTestCaches points both market caches at one fake server.
 func newTestCaches(fake *fakeMarket) (*priceCache, *demandCache) {
 	client := fake.client()
-	return newPriceCache(client, "Caerleon", time.Minute),
-		newDemandCache(client, "Caerleon", 1, time.Minute)
+	return newPriceCache(client, time.Minute),
+		newDemandCache(client, 1, time.Minute)
+}
+
+// testKey is one item at the default hub.
+func testKey(id string) priceKey {
+	return priceKey{id: id, city: crafting.DefaultCity}
+}
+
+// lookup reads one cached quote at the default hub.
+func lookup(t *testing.T, cache *priceCache, id string) market.Price {
+	t.Helper()
+	return cache.Lookup(context.Background(), []priceKey{testKey(id)})[testKey(id)]
 }
 
 // setHistory sets how many units of each item trade per day.
@@ -149,8 +185,7 @@ func TestPriceCacheServesFromMemory(t *testing.T) {
 	cache, _ := newTestCaches(fake)
 
 	for i := 0; i < 3; i++ {
-		rows := cache.Lookup(context.Background(), []string{"T4_METALBAR"})
-		if got := rows["T4_METALBAR"].SellPriceMin; got != 1200 {
+		if got := lookup(t, cache, "T4_METALBAR").SellPriceMin; got != 1200 {
 			t.Fatalf("lookup %d: sell price = %d, want 1200", i, got)
 		}
 	}
@@ -167,15 +202,15 @@ func TestPriceCacheRefetchesAfterTTL(t *testing.T) {
 	now := time.Date(2026, 11, 3, 12, 0, 0, 0, time.UTC)
 	cache.now = func() time.Time { return now }
 
-	cache.Lookup(context.Background(), []string{"T4_METALBAR"})
+	lookup(t, cache, "T4_METALBAR")
 	now = now.Add(30 * time.Second)
-	cache.Lookup(context.Background(), []string{"T4_METALBAR"})
+	lookup(t, cache, "T4_METALBAR")
 	if got := fake.count(); got != 1 {
 		t.Fatalf("requests within ttl = %d, want 1", got)
 	}
 
 	now = now.Add(2 * time.Minute)
-	cache.Lookup(context.Background(), []string{"T4_METALBAR"})
+	lookup(t, cache, "T4_METALBAR")
 	if got := fake.count(); got != 2 {
 		t.Errorf("requests after ttl = %d, want 2", got)
 	}
@@ -186,12 +221,13 @@ func TestPriceCacheBacksOffAfterFailure(t *testing.T) {
 	fake.setFailing(true)
 	cache, _ := newTestCaches(fake)
 
-	if rows := cache.Lookup(context.Background(), []string{"T4_METALBAR"}); len(rows) != 0 {
-		t.Fatalf("rows = %v, want none on failure", rows)
+	key := testKey("T4_METALBAR")
+	if _, ok := cache.Lookup(context.Background(), []priceKey{key})[key]; ok {
+		t.Fatal("quote returned on failure")
 	}
 
 	// Within the retry window the cache must not hammer the API again.
-	cache.Lookup(context.Background(), []string{"T4_METALBAR"})
+	cache.Lookup(context.Background(), []priceKey{key})
 	if got := fake.count(); got != 1 {
 		t.Errorf("requests after failure = %d, want 1", got)
 	}
@@ -201,8 +237,9 @@ func TestPriceCacheUnknownItemIsBlank(t *testing.T) {
 	fake := newFakeMarket(t, map[string]int{})
 	cache, _ := newTestCaches(fake)
 
-	if rows := cache.Lookup(context.Background(), []string{"T4_METALBAR"}); len(rows) != 0 {
-		t.Errorf("rows = %v, want none", rows)
+	key := testKey("T4_METALBAR")
+	if _, ok := cache.Lookup(context.Background(), []priceKey{key})[key]; ok {
+		t.Error("quote returned for an item the API does not know")
 	}
 }
 
@@ -415,34 +452,32 @@ func fakeWithHistory(t *testing.T, history map[string]int) *fakeMarket {
 	return fake
 }
 
-// buildSwordPlan renders the T8 broadsword plan against prices for its T4
-// materials and its T4 output.
-func buildSwordPlan(t *testing.T, extra map[string]int, fee float64) PlanTable {
+// newSwordMarket prices the T4 materials and the T4 broadsword, and records
+// twelve sales a day of the T4 broadsword.
+func newSwordMarket(t *testing.T) *fakeMarket {
 	t.Helper()
-
-	prices := map[string]int{
+	fake := newFakeMarket(t, map[string]int{
 		"T4_METALBAR":   1000,
 		"T4_LEATHER":    500,
 		"T4_MAIN_SWORD": 30000,
-	}
-	for id, price := range extra {
-		prices[id] = price
-	}
-
-	fake := newFakeMarket(t, prices)
+	})
 	fake.setHistory(map[string]int{"T4_MAIN_SWORD": 12})
-	state := crafting.DefaultState()
-	state.StationFee = fee
+	return fake
+}
 
+// buildSwordPlan renders the T8 broadsword plan, whose rows are the T4 through
+// T8 variants of the sword and their recipes.
+func buildSwordPlan(t *testing.T, fake *fakeMarket, state crafting.State) PlanTable {
+	t.Helper()
 	selected := &crafting.Item{
 		UniqueName:     "T8_MAIN_SWORD",
 		BaseUniqueName: "MAIN_SWORD",
 		Label:          "Elder's Broadsword",
 	}
-	now := time.Date(2026, 11, 3, 5, 10, 0, 0, time.UTC)
 	client := fake.client()
-	table := buildPlan(context.Background(), newPriceCache(client, "Caerleon", time.Minute),
-		newDemandCache(client, "Caerleon", 1, time.Minute), state, selected, now)
+	now := time.Date(2026, 11, 3, 5, 10, 0, 0, time.UTC)
+	table := buildPlan(context.Background(), newPriceCache(client, time.Minute),
+		newDemandCache(client, 1, time.Minute), state, selected, now)
 	if len(table.Rows) == 0 {
 		t.Fatal("no plan rows")
 	}
@@ -450,7 +485,7 @@ func buildSwordPlan(t *testing.T, extra map[string]int, fee float64) PlanTable {
 }
 
 func TestBuildPlanOutputPriceAndMargin(t *testing.T) {
-	row := buildSwordPlan(t, nil, 0).Rows[0]
+	row := buildSwordPlan(t, newSwordMarket(t), crafting.DefaultState()).Rows[0]
 
 	if row.Output.ItemID != "T4_MAIN_SWORD" {
 		t.Errorf("output = %q, want T4_MAIN_SWORD", row.Output.ItemID)
@@ -478,7 +513,9 @@ func TestBuildPlanOutputPriceAndMargin(t *testing.T) {
 }
 
 func TestBuildPlanStationFeeIsPartOfCost(t *testing.T) {
-	row := buildSwordPlan(t, nil, 500).Rows[0]
+	state := crafting.DefaultState()
+	state.StationFee = 500
+	row := buildSwordPlan(t, newSwordMarket(t), state).Rows[0]
 
 	if row.Economics.Cost != 20500 {
 		t.Errorf("cost = %v, want 20500", row.Economics.Cost)
@@ -490,7 +527,7 @@ func TestBuildPlanStationFeeIsPartOfCost(t *testing.T) {
 
 func TestBuildPlanMarginIsBlankWithMissingPrices(t *testing.T) {
 	// The enchanted rows need level materials the fake market does not price.
-	row := buildSwordPlan(t, nil, 0).Rows[1]
+	row := buildSwordPlan(t, newSwordMarket(t), crafting.DefaultState()).Rows[1]
 
 	if row.Economics.HasCost {
 		t.Error("cost reported as complete without every ingredient priced")
@@ -503,15 +540,7 @@ func TestBuildPlanMarginIsBlankWithMissingPrices(t *testing.T) {
 func TestBuildPlanOutputOverrideWinsOverQuote(t *testing.T) {
 	state := crafting.DefaultState()
 	state.Overrides = map[string]float64{"T4_MAIN_SWORD": 40000}
-
-	selected := &crafting.Item{
-		UniqueName:     "T8_MAIN_SWORD",
-		BaseUniqueName: "MAIN_SWORD",
-		Label:          "Elder's Broadsword",
-	}
-	fake := newFakeMarket(t, map[string]int{"T4_METALBAR": 1000, "T4_LEATHER": 500, "T4_MAIN_SWORD": 30000})
-	prices, demands := newTestCaches(fake)
-	row := buildPlan(context.Background(), prices, demands, state, selected, time.Now()).Rows[0]
+	row := buildSwordPlan(t, newSwordMarket(t), state).Rows[0]
 
 	if !row.Output.HasOverride || row.Output.Override != 40000 {
 		t.Errorf("output override = %+v, want 40000", row.Output)
@@ -525,7 +554,7 @@ func TestBuildPlanOutputOverrideWinsOverQuote(t *testing.T) {
 }
 
 func TestBuildPlanDemandAndSilverPerDay(t *testing.T) {
-	row := buildSwordPlan(t, nil, 0).Rows[0]
+	row := buildSwordPlan(t, newSwordMarket(t), crafting.DefaultState()).Rows[0]
 
 	if !row.HasDemand || row.DemandUnits != 84 {
 		t.Errorf("demand = %d (has %v), want 84 units over 7 days", row.DemandUnits, row.HasDemand)
@@ -535,17 +564,94 @@ func TestBuildPlanDemandAndSilverPerDay(t *testing.T) {
 	}
 }
 
+func TestBuildPlanBuysInTheChosenCity(t *testing.T) {
+	fake := newSwordMarket(t)
+	fake.setCityPrices("Caerleon", map[string]int{"T4_METALBAR": 800})
+
+	state := crafting.DefaultState()
+	state.BuyCities = map[string]string{"T4_METALBAR": "Caerleon"}
+	row := buildSwordPlan(t, fake, state).Rows[0]
+
+	cell := row.Cells[0]
+	if cell.City != "Caerleon" {
+		t.Errorf("cell city = %q, want Caerleon", cell.City)
+	}
+	if !cell.HasPrice || cell.Price != 800 {
+		t.Errorf("cell price = %v, want the Caerleon quote 800", cell.Price)
+	}
+	if want := 800*16 + 500*8; row.Economics.Cost != float64(want) {
+		t.Errorf("cost = %v, want %d", row.Economics.Cost, want)
+	}
+}
+
+func TestBuildPlanBuysWithOrders(t *testing.T) {
+	fake := newSwordMarket(t)
+	fake.setBids(map[string]int{"T4_METALBAR": 900})
+
+	state := crafting.DefaultState()
+	state.BuyModes = map[string]string{"T4_METALBAR": crafting.ModeOrder}
+	row := buildSwordPlan(t, fake, state).Rows[0]
+
+	if cell := row.Cells[0]; !cell.HasPrice || cell.Price != 900 {
+		t.Errorf("cell price = %+v, want the 900 bid", cell)
+	}
+	// The other material is still an instant buy at its ask.
+	if cell := row.Cells[1]; !cell.HasPrice || cell.Price != 500 {
+		t.Errorf("second cell price = %+v, want 500", cell)
+	}
+	if want := 900*16 + 500*8; row.Economics.Cost != float64(want) {
+		t.Errorf("cost = %v, want %d", row.Economics.Cost, want)
+	}
+}
+
+func TestBuildPlanSellsInstantly(t *testing.T) {
+	fake := newSwordMarket(t)
+	fake.setBids(map[string]int{"T4_MAIN_SWORD": 28000})
+
+	state := crafting.DefaultState()
+	state.SellMode = crafting.ModeInstant
+	row := buildSwordPlan(t, fake, state).Rows[0]
+
+	if !row.Output.HasPrice || row.Output.Price != 28000 {
+		t.Errorf("output price = %+v, want the 28000 bid", row.Output)
+	}
+	if row.Economics.Revenue != 28000 {
+		t.Errorf("revenue = %v, want 28000", row.Economics.Revenue)
+	}
+}
+
+func TestPriceCacheFetchesEachCitySeparately(t *testing.T) {
+	fake := newFakeMarket(t, map[string]int{"T4_METALBAR": 1000})
+	fake.setCityPrices("Caerleon", map[string]int{"T4_METALBAR": 800})
+	cache := newPriceCache(fake.client(), time.Minute)
+
+	bridgewatch := testKey("T4_METALBAR")
+	caerleon := priceKey{id: "T4_METALBAR", city: "Caerleon"}
+	quotes := cache.Lookup(context.Background(), []priceKey{bridgewatch, caerleon})
+
+	if got := quotes[bridgewatch].SellPriceMin; got != 1000 {
+		t.Errorf("Bridgewatch price = %d, want 1000", got)
+	}
+	if got := quotes[caerleon].SellPriceMin; got != 800 {
+		t.Errorf("Caerleon price = %d, want 800", got)
+	}
+	if got := fake.count(); got != 2 {
+		t.Errorf("requests = %d, want one per city", got)
+	}
+}
+
 func TestDemandCacheReusesHistoryAcrossWindows(t *testing.T) {
 	fake := fakeWithHistory(t, map[string]int{"T4_MAIN_SWORD": 12})
-	cache := newDemandCache(fake.client(), "Caerleon", 1, time.Minute)
+	cache := newDemandCache(fake.client(), 1, time.Minute)
+	key := testKey("T4_MAIN_SWORD")
 
-	week := cache.Lookup(context.Background(), []string{"T4_MAIN_SWORD"}, 7)
-	month := cache.Lookup(context.Background(), []string{"T4_MAIN_SWORD"}, 30)
+	week := cache.Lookup(context.Background(), []priceKey{key}, 7)
+	month := cache.Lookup(context.Background(), []priceKey{key}, 30)
 
-	if got := week["T4_MAIN_SWORD"]; got != 84 {
+	if got := week[key]; got != 84 {
 		t.Errorf("week units = %d, want 84", got)
 	}
-	if got := month["T4_MAIN_SWORD"]; got != 360 {
+	if got := month[key]; got != 360 {
 		t.Errorf("month units = %d, want 360", got)
 	}
 	if got := fake.count(); got != 1 {
@@ -555,17 +661,19 @@ func TestDemandCacheReusesHistoryAcrossWindows(t *testing.T) {
 
 func TestDemandCacheDoesNotRefetchItemsWithoutHistory(t *testing.T) {
 	fake := fakeWithHistory(t, map[string]int{"T4_MAIN_SWORD": 3})
-	cache := newDemandCache(fake.client(), "Caerleon", 1, time.Minute)
+	cache := newDemandCache(fake.client(), 1, time.Minute)
+	sword := testKey("T4_MAIN_SWORD")
+	elder := testKey("T8_MAIN_SWORD")
 
 	for i := 0; i < 3; i++ {
-		cache.Lookup(context.Background(), []string{"T4_MAIN_SWORD", "T8_MAIN_SWORD"}, 7)
+		cache.Lookup(context.Background(), []priceKey{sword, elder}, 7)
 	}
 
 	if got := fake.count(); got != 1 {
 		t.Errorf("requests = %d, want 1 (an item with no history is cached too)", got)
 	}
-	units := cache.Lookup(context.Background(), []string{"T8_MAIN_SWORD"}, 7)
-	if got := units["T8_MAIN_SWORD"]; got != 0 {
+	units := cache.Lookup(context.Background(), []priceKey{elder}, 7)
+	if got := units[elder]; got != 0 {
 		t.Errorf("units = %d, want 0", got)
 	}
 }

@@ -40,6 +40,9 @@ type PlanCell struct {
 	AgeClass    string
 	Override    float64
 	HasOverride bool
+	// City and Mode are the hub and trade the quote is read at.
+	City string
+	Mode string
 	// Rowspan is how many tier rows this cell covers; 0 renders a normal cell.
 	Rowspan int
 }
@@ -111,22 +114,25 @@ func buildPlan(ctx context.Context, prices *priceCache, demands *demandCache, st
 		outputs = append(outputs, crafting.ItemID(selected.BaseUniqueName, plan.Tier, plan.Enchant))
 	}
 
-	seen := make(map[string]bool, len(outputs)+len(plans)*planIngredientColumns)
-	ids := make([]string, 0, len(seen))
-	for _, id := range outputs {
-		seen[id] = true
-		ids = append(ids, id)
-	}
-	for _, plan := range plans {
-		for _, ingredient := range plan.Ingredients {
-			if !seen[ingredient.ItemID] {
-				seen[ingredient.ItemID] = true
-				ids = append(ids, ingredient.ItemID)
-			}
+	city := sellCity(state)
+	keys := make([]priceKey, 0, len(plans)*(planIngredientColumns+1))
+	seen := make(map[priceKey]bool, cap(keys))
+	addKey := func(key priceKey) {
+		if !seen[key] {
+			seen[key] = true
+			keys = append(keys, key)
 		}
 	}
-	quotes := prices.Lookup(ctx, ids)
-	traded := demands.Lookup(ctx, outputs, state.DemandDays)
+	demandKeys := make([]priceKey, 0, len(plans))
+	for i, plan := range plans {
+		addKey(priceKey{id: outputs[i], city: city})
+		demandKeys = append(demandKeys, priceKey{id: outputs[i], city: city})
+		for _, ingredient := range plan.Ingredients {
+			addKey(priceKey{id: ingredient.ItemID, city: state.CityFor(ingredient.ItemID)})
+		}
+	}
+	quotes := prices.Lookup(ctx, keys)
+	traded := demands.Lookup(ctx, demandKeys, state.DemandDays)
 
 	rows := make([]PlanRow, 0, len(plans))
 	days := float64(demandDays(state))
@@ -141,7 +147,9 @@ func buildPlan(ctx context.Context, prices *priceCache, demands *demandCache, st
 				ItemID: outputs[i],
 				Label:  selected.Label,
 				Count:  1,
-			}, state, quotes, now),
+				City:   city,
+				Mode:   sellMode(state),
+			}, state, quotes, now, true),
 		}
 		previousTier = plan.Tier
 
@@ -150,7 +158,9 @@ func buildPlan(ctx context.Context, prices *priceCache, demands *demandCache, st
 				ItemID: ingredient.ItemID,
 				Label:  crafting.Name(ingredient.ItemID),
 				Count:  ingredient.Count,
-			}, state, quotes, now))
+				City:   state.CityFor(ingredient.ItemID),
+				Mode:   state.ModeFor(ingredient.ItemID),
+			}, state, quotes, now, false))
 		}
 
 		for len(row.Cells) < planIngredientColumns {
@@ -158,7 +168,7 @@ func buildPlan(ctx context.Context, prices *priceCache, demands *demandCache, st
 		}
 
 		row.Economics = economics(state, row)
-		row.DemandUnits, row.HasDemand = traded[row.Output.ItemID]
+		row.DemandUnits, row.HasDemand = traded[priceKey{id: row.Output.ItemID, city: city}]
 		if row.HasDemand && row.Output.HasPrice {
 			row.HasBought = true
 			row.BoughtPerDay = float64(row.DemandUnits) / days * row.Output.Price
@@ -174,8 +184,9 @@ func buildPlan(ctx context.Context, prices *priceCache, demands *demandCache, st
 	}
 }
 
-// pricedCell fills in the manual override or cached quote for one item.
-func pricedCell(cell PlanCell, state crafting.State, quotes map[string]market.Price, now time.Time) PlanCell {
+// pricedCell fills in the manual override or the quote a trade would fill at.
+// selling picks the product's side of the book, buying picks a material's.
+func pricedCell(cell PlanCell, state crafting.State, quotes map[priceKey]market.Price, now time.Time, selling bool) PlanCell {
 	if override, ok := state.Overrides[cell.ItemID]; ok {
 		cell.Price = override
 		cell.HasPrice = true
@@ -183,12 +194,35 @@ func pricedCell(cell PlanCell, state crafting.State, quotes map[string]market.Pr
 		cell.HasOverride = true
 		return cell
 	}
-	if quote, ok := quotes[cell.ItemID]; ok && quote.SellPriceMin > 0 {
-		cell.Price = float64(quote.SellPriceMin)
-		cell.HasPrice = true
-		cell.AgeHours, cell.AgeClass = priceAge(now, quote.SellPriceMinDate.Time)
+	quote, ok := quotes[priceKey{id: cell.ItemID, city: cell.City}]
+	if !ok {
+		return cell
 	}
+	price, seen, ok := quotePrice(quote, selling, cell.Mode == crafting.ModeOrder)
+	if !ok {
+		return cell
+	}
+	cell.Price = price
+	cell.HasPrice = true
+	cell.AgeHours, cell.AgeClass = priceAge(now, seen)
 	return cell
+}
+
+// quotePrice returns the price a trade fills at. An order joins the book: a
+// sell order undercuts the lowest ask, a buy order tops the highest bid. An
+// instant trade crosses the spread and takes the other side.
+func quotePrice(quote market.Price, selling, order bool) (float64, time.Time, bool) {
+	var price int64
+	var seen market.Timestamp
+	if selling == order {
+		price, seen = quote.SellPriceMin, quote.SellPriceMinDate
+	} else {
+		price, seen = quote.BuyPriceMax, quote.BuyPriceMaxDate
+	}
+	if price <= 0 {
+		return 0, time.Time{}, false
+	}
+	return float64(price), seen.Time, true
 }
 
 // economics sums the material prices plus the station fee and sets them against
@@ -223,6 +257,22 @@ func demandDays(state crafting.State) int {
 		return 1
 	}
 	return state.DemandDays
+}
+
+// sellCity and sellMode fall back to the defaults for a state that never went
+// through Normalize, such as one built by hand in a test.
+func sellCity(state crafting.State) string {
+	if state.SellCity == "" {
+		return crafting.DefaultCity
+	}
+	return state.SellCity
+}
+
+func sellMode(state crafting.State) string {
+	if state.SellMode == "" {
+		return crafting.ModeOrder
+	}
+	return state.SellMode
 }
 
 // mergeSharedIngredients collapses the unenchanted ingredient columns into one

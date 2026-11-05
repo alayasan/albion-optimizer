@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/alayasan/albion-optimizer/web/internal/market"
 )
 
 //go:embed data/items.json
@@ -30,6 +32,23 @@ type Option struct {
 
 // overridePrefix is the form field prefix for manual unit prices.
 const overridePrefix = "price["
+
+// Form field prefixes for the per-material trade selections.
+const (
+	cityPrefix = "buyCity["
+	modePrefix = "buyMode["
+)
+
+const (
+	// DefaultCity is the hub prices are read in until a trade picks another.
+	DefaultCity = "Bridgewatch"
+
+	// ModeOrder keeps a trade in the order book: a sell order for the product,
+	// a buy order for a material. ModeInstant crosses the spread and trades
+	// against the offers already on the market.
+	ModeOrder   = "order"
+	ModeInstant = "instant"
+)
 
 var (
 	items []Item
@@ -82,6 +101,20 @@ var (
 		{Value: "30", Label: "30 days"},
 	}
 
+	// Cities are the hubs an item can be priced in, in the order the market
+	// package lists them.
+	Cities = cityOptions()
+
+	SellModes = []Option{
+		{Value: ModeOrder, Label: "Sell order"},
+		{Value: ModeInstant, Label: "Instant sell"},
+	}
+
+	BuyModes = []Option{
+		{Value: ModeInstant, Label: "Instant buy"},
+		{Value: ModeOrder, Label: "Buy order"},
+	}
+
 	tierPattern    = regexp.MustCompile(`^T(\d+)_`)
 	levelPattern   = regexp.MustCompile(`_LEVEL\d+$`)
 	enchantPattern = regexp.MustCompile(`@\d+$`)
@@ -98,6 +131,16 @@ func sortItems(list []Item) {
 	sort.Slice(list, func(i, j int) bool {
 		return list[i].Label < list[j].Label
 	})
+}
+
+// cityOptions mirrors the market hubs as UI options, so the selectable cities
+// and the API locations cannot drift apart.
+func cityOptions() []Option {
+	options := make([]Option, len(market.CommonLocations))
+	for i, location := range market.CommonLocations {
+		options[i] = Option{Value: location.Name, Label: location.Name}
+	}
+	return options
 }
 
 // Items returns the embedded, sorted list of craftable items.
@@ -142,6 +185,13 @@ type State struct {
 	DailyBonus   string  `json:"dailyBonus"`
 	// DemandDays is how many days of market history the demand columns cover.
 	DemandDays int `json:"demandDays"`
+	// SellCity and SellMode decide where and how the crafted item is priced.
+	SellCity string `json:"sellCity,omitempty"`
+	SellMode string `json:"sellMode,omitempty"`
+	// BuyCities and BuyModes override the city and trade per material, keyed
+	// by the material's item id. Entries equal to the defaults are dropped.
+	BuyCities map[string]string `json:"buyCities,omitempty"`
+	BuyModes  map[string]string `json:"buyModes,omitempty"`
 	// Overrides holds manually entered unit prices, keyed by item id.
 	Overrides map[string]float64 `json:"prices,omitempty"`
 }
@@ -162,6 +212,8 @@ func DefaultState() State {
 		HideoutPower: 1,
 		DailyBonus:   "none",
 		DemandDays:   7,
+		SellCity:     DefaultCity,
+		SellMode:     ModeOrder,
 	}
 }
 
@@ -192,6 +244,14 @@ func (s State) Normalize() State {
 	if !hasOption(DemandWindows, strconv.Itoa(s.DemandDays)) {
 		s.DemandDays = 7
 	}
+	if !hasOption(Cities, s.SellCity) {
+		s.SellCity = DefaultCity
+	}
+	if !hasOption(SellModes, s.SellMode) {
+		s.SellMode = ModeOrder
+	}
+	s.BuyCities = pruneSelection(s.BuyCities, Cities, DefaultCity)
+	s.BuyModes = pruneSelection(s.BuyModes, BuyModes, ModeInstant)
 	for itemID, price := range s.Overrides {
 		if itemID == "" || price <= 0 {
 			delete(s.Overrides, itemID)
@@ -217,6 +277,10 @@ func FromValues(values url.Values) State {
 		HideoutPower: atoi(values.Get("hideoutPower"), 1),
 		DailyBonus:   values.Get("dailyBonus"),
 		DemandDays:   atoi(values.Get("demandDays"), 7),
+		SellCity:     values.Get("sellCity"),
+		SellMode:     values.Get("sellMode"),
+		BuyCities:    parseSelections(values, cityPrefix),
+		BuyModes:     parseSelections(values, modePrefix),
 		Overrides:    parseOverrides(values),
 	}
 	return s.Normalize()
@@ -226,15 +290,12 @@ func FromValues(values url.Values) State {
 func parseOverrides(values url.Values) map[string]float64 {
 	var overrides map[string]float64
 	for key, entries := range values {
-		if !strings.HasPrefix(key, overridePrefix) || !strings.HasSuffix(key, "]") {
+		itemID, ok := fieldItemID(key, overridePrefix)
+		if !ok || len(entries) == 0 {
 			continue
 		}
-		if len(entries) == 0 {
-			continue
-		}
-		itemID := strings.TrimSuffix(strings.TrimPrefix(key, overridePrefix), "]")
 		price, err := strconv.ParseFloat(strings.TrimSpace(entries[0]), 64)
-		if itemID == "" || err != nil || price <= 0 {
+		if err != nil || price <= 0 {
 			continue
 		}
 		if overrides == nil {
@@ -243,6 +304,61 @@ func parseOverrides(values url.Values) map[string]float64 {
 		overrides[itemID] = price
 	}
 	return overrides
+}
+
+// parseSelections reads prefix[ITEM_ID]=value form fields into a map.
+func parseSelections(values url.Values, prefix string) map[string]string {
+	var selections map[string]string
+	for key, entries := range values {
+		itemID, ok := fieldItemID(key, prefix)
+		if !ok || len(entries) == 0 {
+			continue
+		}
+		if selections == nil {
+			selections = make(map[string]string)
+		}
+		selections[itemID] = entries[0]
+	}
+	return selections
+}
+
+// fieldItemID extracts ITEM_ID from a prefix[ITEM_ID] form field name.
+func fieldItemID(key, prefix string) (string, bool) {
+	if !strings.HasPrefix(key, prefix) || !strings.HasSuffix(key, "]") {
+		return "", false
+	}
+	itemID := strings.TrimSuffix(strings.TrimPrefix(key, prefix), "]")
+	return itemID, itemID != ""
+}
+
+// pruneSelection drops entries that are invalid or already the default, so the
+// cookie only carries the deviations.
+func pruneSelection(selections map[string]string, options []Option, fallback string) map[string]string {
+	for itemID, value := range selections {
+		if !hasOption(options, value) || value == fallback {
+			delete(selections, itemID)
+		}
+	}
+	if len(selections) == 0 {
+		return nil
+	}
+	return selections
+}
+
+// CityFor returns the hub a material is bought in.
+func (s State) CityFor(itemID string) string {
+	if city, ok := s.BuyCities[itemID]; ok {
+		return city
+	}
+	return DefaultCity
+}
+
+// ModeFor returns the trade a material is bought with.
+func (s State) ModeFor(itemID string) string {
+	if mode, ok := s.BuyModes[itemID]; ok {
+		return mode
+	}
+	return ModeInstant
 }
 
 // Encode serializes state for use as a cookie value.

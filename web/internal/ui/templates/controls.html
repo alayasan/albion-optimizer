@@ -19,6 +19,15 @@
       </select>
     </label>
 
+    <label class="field">
+      <span>Demand Window</span>
+      <select name="demandDays" class="control">
+        {{range .DemandWindows}}
+        <option value="{{.Value}}" {{if selected .Value $.State.DemandDays}}selected{{end}}>{{.Label}}</option>
+        {{end}}
+      </select>
+    </label>
+
     <label class="field field-check">
       <span>Refresh Data</span>
       <input

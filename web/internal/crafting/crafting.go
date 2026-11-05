@@ -75,6 +75,13 @@ var (
 		{Value: "island", Label: "Island"},
 	}
 
+	DemandWindows = []Option{
+		{Value: "1", Label: "1 day"},
+		{Value: "7", Label: "7 days"},
+		{Value: "14", Label: "14 days"},
+		{Value: "30", Label: "30 days"},
+	}
+
 	tierPattern    = regexp.MustCompile(`^T(\d+)_`)
 	levelPattern   = regexp.MustCompile(`_LEVEL\d+$`)
 	enchantPattern = regexp.MustCompile(`@\d+$`)
@@ -133,6 +140,8 @@ type State struct {
 	ZoneQuality  int     `json:"zoneQuality"`
 	HideoutPower int     `json:"hideoutPower"`
 	DailyBonus   string  `json:"dailyBonus"`
+	// DemandDays is how many days of market history the demand columns cover.
+	DemandDays int `json:"demandDays"`
 	// Overrides holds manually entered unit prices, keyed by item id.
 	Overrides map[string]float64 `json:"prices,omitempty"`
 }
@@ -152,6 +161,7 @@ func DefaultState() State {
 		ZoneQuality:  2,
 		HideoutPower: 1,
 		DailyBonus:   "none",
+		DemandDays:   7,
 	}
 }
 
@@ -179,6 +189,9 @@ func (s State) Normalize() State {
 	if !hasOption(DailyBonuses, s.DailyBonus) {
 		s.DailyBonus = "none"
 	}
+	if !hasOption(DemandWindows, strconv.Itoa(s.DemandDays)) {
+		s.DemandDays = 7
+	}
 	for itemID, price := range s.Overrides {
 		if itemID == "" || price <= 0 {
 			delete(s.Overrides, itemID)
@@ -203,6 +216,7 @@ func FromValues(values url.Values) State {
 		ZoneQuality:  atoi(values.Get("zoneQuality"), 2),
 		HideoutPower: atoi(values.Get("hideoutPower"), 1),
 		DailyBonus:   values.Get("dailyBonus"),
+		DemandDays:   atoi(values.Get("demandDays"), 7),
 		Overrides:    parseOverrides(values),
 	}
 	return s.Normalize()

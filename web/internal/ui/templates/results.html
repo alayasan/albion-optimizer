@@ -15,46 +15,59 @@
           {{range .Plan.Headers}}
           <th>{{.}}</th>
           {{end}}
-          <th>Qty</th>
-          <th>Quality</th>
-          <th>Location</th>
-          <th>Zone</th>
-          <th>Hideout</th>
-          <th>Daily Bonus</th>
-          <th>Station Fee</th>
-          <th>Focus</th>
+          <th>Price</th>
+          <th class="num">Demand ({{.State.DemandDays}}d)</th>
+          <th class="num">Profit</th>
+          <th class="num">Gain</th>
+          <th class="num">Cost</th>
+          <th class="num">Books</th>
+          <th class="num">Fame</th>
+          <th class="num">Bought / day</th>
         </tr>
       </thead>
       <tbody>
         {{if .Plan.Rows}}
         {{range .Plan.Rows}}
         <tr>
-          <td>{{.Enchant}}</td>
+          <td class="enchant">{{.Enchant}}</td>
           {{range .Cells}}
-          <td>
+          <td{{if gt .Rowspan 1}} rowspan="{{.Rowspan}}"{{end}}>
             {{if .ItemID}}
-            <div>{{.Label}} &times;{{.Count}}</div>
-            <div class="muted">{{if .HasPrice}}{{money .Price}}{{else}}&mdash;{{end}}{{if .Age}} &middot;
-              {{.Age}}{{end}}</div>
-            <input class="control" type="number" name="price[{{.ItemID}}]" min="0" step="1"
-              placeholder="{{if .HasPrice}}{{money .Price}}{{end}}"
-              value="{{if .HasOverride}}{{number .Override}}{{end}}" />
+            <label class="price-row">
+              <input class="control" type="number" name="price[{{.ItemID}}]" min="0" step="1"
+                aria-label="{{.Label}} price"
+                placeholder="{{if .HasPrice}}{{money .Price}}{{end}}"
+                value="{{if .HasOverride}}{{number .Override}}{{end}}" />
+              {{if .AgeHours}}<span class="age {{.AgeClass}}">{{.AgeHours}}</span>{{end}}
+            </label>
             {{else}}&mdash;{{end}}
           </td>
           {{end}}
-          <td>{{$.State.Quantity}}</td>
-          <td>{{$.Summary.QualityLabel}}</td>
-          <td>{{$.Summary.LocationLabel}}</td>
-          <td>{{$.State.ZoneQuality}}</td>
-          <td>{{$.State.HideoutPower}}</td>
-          <td>{{$.Summary.DailyBonusLabel}}</td>
-          <td>{{money $.State.StationFee}} <span class="muted">({{money $.Summary.StationFeeTotal}} total)</span></td>
-          <td>{{if $.State.UseFocus}}Yes{{else}}No{{end}}</td>
+          <td>
+            <label class="price-row">
+              <input class="control" type="number" name="price[{{.Output.ItemID}}]" min="0" step="1"
+                aria-label="{{.Output.Label}} T{{.Tier}}{{if .Enchant}}.{{.Enchant}}{{end}} price"
+                placeholder="{{if .Output.HasPrice}}{{money .Output.Price}}{{end}}"
+                value="{{if .Output.HasOverride}}{{number .Output.Override}}{{end}}" />
+              {{if .Output.AgeHours}}<span class="age {{.Output.AgeClass}}">{{.Output.AgeHours}}</span>{{end}}
+            </label>
+          </td>
+          <td class="num">{{if .HasDemand}}{{.DemandUnits}}{{else}}&mdash;{{end}}</td>
+          <td class="num{{if .Economics.HasProfit}}{{if lt .Economics.Profit 0.0}} neg{{else}} pos{{end}}{{end}}">
+            {{if .Economics.HasProfit}}{{money .Economics.Profit}}{{else}}&mdash;{{end}}
+          </td>
+          <td class="num{{if .Economics.HasGain}}{{if lt .Economics.Gain 0.0}} neg{{else}} pos{{end}}{{end}}">
+            {{if .Economics.HasGain}}{{printf "%.1f%%" .Economics.Gain}}{{else}}&mdash;{{end}}
+          </td>
+          <td class="num">{{if .Economics.HasCost}}{{money .Economics.Cost}}{{else}}&mdash;{{end}}</td>
+          <td class="num muted">&mdash;</td>
+          <td class="num muted">&mdash;</td>
+          <td class="num">{{if .HasBought}}{{money .BoughtPerDay}}{{else}}&mdash;{{end}}</td>
         </tr>
         {{end}}
         {{else}}
         <tr>
-          <td colspan="13" class="muted">No recipe data for this item.</td>
+          <td colspan="{{.Plan.Cols}}" class="muted">No recipe data for this item.</td>
         </tr>
         {{end}}
       </tbody>

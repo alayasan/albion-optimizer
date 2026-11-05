@@ -122,3 +122,21 @@ func TestEveryCraftableItemHasPlans(t *testing.T) {
 		}
 	}
 }
+
+func TestItemID(t *testing.T) {
+	cases := []struct {
+		base    string
+		tier    int
+		enchant int
+		want    string
+	}{
+		{"MAIN_SWORD", 4, 0, "T4_MAIN_SWORD"},
+		{"MAIN_SWORD", 8, 3, "T8_MAIN_SWORD@3"},
+		{"2H_ARCANESTAFF_CRYSTAL", 6, 1, "T6_2H_ARCANESTAFF_CRYSTAL@1"},
+	}
+	for _, tc := range cases {
+		if got := ItemID(tc.base, tc.tier, tc.enchant); got != tc.want {
+			t.Errorf("ItemID(%q, %d, %d) = %q, want %q", tc.base, tc.tier, tc.enchant, got, tc.want)
+		}
+	}
+}

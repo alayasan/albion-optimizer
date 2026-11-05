@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/alayasan/albion-optimizer/web/internal/crafting"
 	"github.com/alayasan/albion-optimizer/web/internal/market"
@@ -35,6 +36,7 @@ type View struct {
 	HideoutPowers []crafting.Option
 	DailyBonuses  []crafting.Option
 	Locations     []crafting.Option
+	DemandWindows []crafting.Option
 	Plan          PlanTable
 }
 
@@ -43,6 +45,7 @@ type Server struct {
 	templates *template.Template
 	mux       *http.ServeMux
 	prices    *priceCache
+	demands   *demandCache
 }
 
 // New parses the embedded templates and wires up the routes.
@@ -69,10 +72,12 @@ func New() (*Server, error) {
 		return nil, fmt.Errorf("static assets: %w", err)
 	}
 
+	client := market.New(priceRegion)
 	s := &Server{
 		templates: templates,
 		mux:       http.NewServeMux(),
-		prices:    newPriceCache(market.New(priceRegion), priceCity, priceTTL),
+		prices:    newPriceCache(client, priceCity, priceTTL),
+		demands:   newDemandCache(client, priceCity, priceQuality, priceTTL),
 	}
 
 	s.mux.HandleFunc("GET /", s.handleIndex)
@@ -107,7 +112,7 @@ func (s *Server) handleCrafting(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) render(w http.ResponseWriter, r *http.Request, state crafting.State) {
-	view := newView(r.Context(), s.prices, state)
+	view := newView(r.Context(), s.prices, s.demands, state)
 
 	name := "layout"
 	if isHTMX(r) {
@@ -126,7 +131,7 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, state crafting.S
 	_, _ = body.WriteTo(w)
 }
 
-func newView(ctx context.Context, prices *priceCache, state crafting.State) View {
+func newView(ctx context.Context, prices *priceCache, demands *demandCache, state crafting.State) View {
 	view := View{
 		State:         state,
 		Items:         crafting.Items(),
@@ -135,12 +140,13 @@ func newView(ctx context.Context, prices *priceCache, state crafting.State) View
 		HideoutPowers: crafting.HideoutPowers,
 		DailyBonuses:  crafting.DailyBonuses,
 		Locations:     crafting.Locations,
+		DemandWindows: crafting.DemandWindows,
 		Summary:       state.Summarize(),
 	}
 
 	if item, ok := crafting.Lookup(state.Item); ok {
 		view.Selected = &item
-		view.Plan = buildPlan(ctx, prices, state, view.Selected)
+		view.Plan = buildPlan(ctx, prices, demands, state, view.Selected, time.Now())
 	}
 
 	return view

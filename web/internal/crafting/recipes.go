@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"strconv"
 )
 
 //go:embed data/recipes.json
@@ -33,6 +34,16 @@ func init() {
 	if err := json.Unmarshal(recipesJSON, &recipes); err != nil {
 		panic(fmt.Sprintf("crafting: parse embedded recipes: %v", err))
 	}
+}
+
+// ItemID builds the market item id of one tier/enchant variant of a base item.
+// The base variant has no enchant suffix, enchanted ones use "@1" through "@4".
+func ItemID(baseUniqueName string, tier, enchant int) string {
+	id := fmt.Sprintf("T%d_%s", tier, baseUniqueName)
+	if enchant > 0 {
+		id += "@" + strconv.Itoa(enchant)
+	}
+	return id
 }
 
 // Recipe returns the ingredients for one tier and enchant level of a base item.

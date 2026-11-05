@@ -1,6 +1,7 @@
 package crafting
 
 import (
+	"net/url"
 	"reflect"
 	"testing"
 )
@@ -144,5 +145,27 @@ func TestTierExtraction(t *testing.T) {
 		if got := Tier(name); got != want {
 			t.Errorf("Tier(%q) = %d, want %d", name, got, want)
 		}
+	}
+}
+
+func TestDemandDaysDefaultsAndNormalizes(t *testing.T) {
+	if got := DefaultState().DemandDays; got != 7 {
+		t.Errorf("default demand days = %d, want 7", got)
+	}
+
+	state := DefaultState()
+	state.DemandDays = 9
+	if got := state.Normalize().DemandDays; got != 7 {
+		t.Errorf("normalized demand days = %d, want the 7 fallback", got)
+	}
+
+	state.DemandDays = 30
+	if got := state.Normalize().DemandDays; got != 30 {
+		t.Errorf("normalized demand days = %d, want 30 kept", got)
+	}
+
+	form := url.Values{"demandDays": {"14"}}
+	if got := FromValues(form).DemandDays; got != 14 {
+		t.Errorf("form demand days = %d, want 14", got)
 	}
 }

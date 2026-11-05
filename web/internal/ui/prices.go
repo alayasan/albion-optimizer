@@ -11,7 +11,7 @@ import (
 const (
 	// Materials are priced on the same region as the live feed.
 	priceRegion  = market.Asia
-	priceCity    = "Caerleon"
+	priceCity    = "Bridgewatch"
 	priceQuality = 1
 
 	priceTTL     = 10 * time.Minute

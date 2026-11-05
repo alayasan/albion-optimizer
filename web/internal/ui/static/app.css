@@ -190,10 +190,72 @@ select.control {
   box-shadow: 0 0 0 3px hsl(var(--ring) / 0.25);
 }
 
+.enchant {
+  width: 20px;
+}
+
+/* Prices read as inline text and only become fields when focused; the age
+   badge beside them is green when fresh and red past 40 hours */
+.price-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  cursor: text;
+}
+
+.price-row .control {
+  flex: 0 1 auto;
+  padding: 0 4px;
+  background: transparent;
+  border-color: transparent;
+  text-align: start;
+  font-variant-numeric: tabular-nums;
+}
+
+.price-row .control:focus {
+  background: hsl(var(--input));
+  border-color: hsl(var(--ring));
+  box-shadow: 0 0 0 3px hsl(var(--ring) / 0.25);
+}
+
+.age {
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.age-0 {
+  color: hsl(122 55% 60%);
+}
+
+.age-1 {
+  color: hsl(96 60% 58%);
+}
+
+.age-2 {
+  color: hsl(60 70% 58%);
+}
+
+.age-3 {
+  color: hsl(38 85% 60%);
+}
+
+.age-4 {
+  color: hsl(20 85% 60%);
+}
+
+.age-5 {
+  color: hsl(0 75% 62%);
+}
+
 /* Remove number spinners, keep it spreadsheet-like */
 input[type="number"].control {
   -moz-appearance: textfield;
   appearance: textfield;
+  border: none;
 }
 
 input[type="number"].control::-webkit-outer-spin-button,
@@ -364,6 +426,21 @@ input[type="number"].control::-webkit-inner-spin-button {
 
 .data-table tbody tr:last-child td {
   border-bottom: 0;
+}
+
+/* Money and volume columns read right-aligned, with the sign coloured so a
+   loss is visible without reading the number */
+.data-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.data-table .pos {
+  color: hsl(122 55% 60%);
+}
+
+.data-table .neg {
+  color: hsl(0 75% 62%);
 }
 
 /* Responsive */
